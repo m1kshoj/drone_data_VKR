@@ -1,0 +1,20 @@
+{
+  "name": "sensor-app",
+  "version": "1.0.0",
+  "main": "client/src/main.js",
+  "scripts": {
+    "start-server": "node server/server.js",
+    "start-electron": "electron .",
+    "start": "concurrently \"npm run start-server\" \"npm run start-electron\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "sqlite3": "^5.1.6",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^28.3.3"
+  }
+}
