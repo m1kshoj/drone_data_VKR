@@ -1,12 +1,282 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление дронами</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .main-content {
+            flex: 1;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .search-bar button {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .search-bar button:hover {
+            background-color: #0056b3;
+        }
+
+        .drone-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 20px;
+            max-height: calc(50vh - 100px);
+            overflow-y: auto;
+        }
+
+        .drone-list li {
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .drone-list li:hover {
+            background-color: #d0d0d0;
+        }
+
+        .controls-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .drone-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .drone-controls .row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .drone-controls button {
+            width: 60px;
+            height: 60px;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .drone-controls button:hover {
+            background-color: #0056b3;
+        }
+
+        .altitude-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .altitude-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .altitude-buttons button:hover {
+            background-color: #0056b3;
+        }
+
+        .sidebar-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .sidebar-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .sidebar-buttons button:first-child {
+            background-color: #28a745;
+        }
+
+        .sidebar-buttons button:first-child:hover {
+            background-color: #218838;
+        }
+
+        .sidebar-buttons button:last-child {
+            background-color: #dc3545;
+        }
+
+        .sidebar-buttons button:last-child:hover {
+            background-color: #c82333;
+        }
+
+        .graph {
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .main-graph {
+            height: 60vh;
+        }
+
+        .small-graphs {
+            display: flex;
+            gap: 10px;
+            height: 40vh;
+        }
+
+        .small-graphs .graph {
+            flex: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+
+            .small-graphs {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .small-graphs .graph {
+                min-height: 100px;
+            }
+
+            .drone-controls .row {
+                flex-wrap: wrap;
+            }
+
+            .drone-controls button {
+                width: 45%;
+                height: 50px;
+            }
+        }
+    </style>
 </head>
 <body>
-<button onclick="launchDrone()">Запустить новый дрон</button>
-<div id="drones-container"></div>
-<script src="renderer.js"></script>
+<div class="container">
+    <div class="sidebar">
+        <div>
+            <h2>Дроны</h2>
+            <div class="search-bar">
+                <input type="text" placeholder="Поиск...">
+                <button>+</button>
+            </div>
+            <ul class="drone-list">
+                <li>dronet1</li>
+                <li>dronet2</li>
+                <li>dronet3</li>
+                <li>dronet4</li>
+                <li>dronet5</li>
+                <li>dronet6</li>
+            </ul>
+        </div>
+
+        <div class="controls-container">
+            <div class="drone-controls">
+                <div class="row">
+                    <button onclick="moveForward()">Вперёд</button>
+                </div>
+                <div class="row">
+                    <button onclick="moveLeft()">Влево</button>
+                    <button onclick="start()">Старт</button>
+                    <button onclick="moveRight()">Вправо</button>
+                </div>
+                <div class="row">
+                    <button onclick="moveBackward()">Назад</button>
+                </div>
+            </div>
+
+            <div class="altitude-buttons">
+                <button onclick="increaseAltitude()">↑ Высота</button>
+                <button onclick="decreaseAltitude()">↓ Высота</button>
+            </div>
+
+            <div class="sidebar-buttons">
+                <button onclick="saveData()">Save data</button>
+                <button onclick="start()">Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <h2>График местоположения</h2>
+        <div class="graph main-graph"></div>
+        <div class="small-graphs">
+            <div class="graph" id="altitude-graph">График высоты</div>
+            <div class="graph" id="temperature-graph">График температуры</div>
+            <div class="graph" id="pressure-graph">График давления</div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
