@@ -12,11 +12,14 @@ body, html {
     height: 100vh;
 }
 
-.sidebar {
-    width: 250px;
+.sidebar, .main-content {
     background-color: #fff;
     padding: 20px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar {
+    width: 250px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -24,11 +27,15 @@ body, html {
 
 .main-content {
     flex: 1;
-    background-color: #fff;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
 }
 
 h2 {
@@ -46,19 +53,22 @@ h2 {
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 4px;
+    font-size: 16px;
 }
 
-.search-bar button {
+.search-bar button, .drone-controls button, .altitude-buttons button, .sidebar-buttons button, .save-button {
     padding: 10px;
     border: none;
     border-radius: 4px;
     background-color: #007bff;
     color: white;
     cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
-.search-bar button:hover {
+.search-bar button:hover, .drone-controls button:hover, .altitude-buttons button:hover, .sidebar-buttons button:hover, .save-button:hover {
     background-color: #0056b3;
+    transform: scale(1.05);
 }
 
 .drone-list {
@@ -70,6 +80,9 @@ h2 {
 }
 
 .drone-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 10px;
     margin: 5px 0;
     background-color: #e0e0e0;
@@ -79,6 +92,43 @@ h2 {
 
 .drone-list li:hover {
     background-color: #d0d0d0;
+}
+
+.drone-list li .actions {
+    display: flex;
+    gap: 5px;
+}
+
+.drone-list li .actions button {
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.drone-list li .actions button.delete {
+    background-color: #dc3545;
+    color: white;
+}
+
+.drone-list li .actions button.edit {
+    background-color: #ffc107;
+    color: white;
+}
+
+.drone-list li .actions button.delete:hover {
+    background-color: #c82333;
+    transform: scale(1.05);
+}
+
+.drone-list li .actions button.edit:hover {
+    background-color: #e0a800;
+    transform: scale(1.05);
 }
 
 .controls-container {
@@ -103,16 +153,21 @@ h2 {
 .drone-controls button {
     width: 60px;
     height: 60px;
-    border: none;
-    border-radius: 8px;
-    background-color: #007bff;
-    color: white;
-    cursor: pointer;
-    font-size: 14px;
+    font-size: 24px;
 }
 
-.drone-controls button:hover {
-    background-color: #0056b3;
+#startStopButton {
+    background-color: #28a745;
+}
+
+#startStopButton:hover {
+    background-color: #218838;
+}
+
+#startStopButton svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
 }
 
 .altitude-buttons {
@@ -123,46 +178,30 @@ h2 {
 
 .altitude-buttons button {
     flex: 1;
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
-    background-color: #007bff;
-    color: white;
-    cursor: pointer;
-}
-
-.altitude-buttons button:hover {
-    background-color: #0056b3;
+    font-size: 16px;
 }
 
 .sidebar-buttons {
     display: flex;
     gap: 10px;
+    justify-content: center; /* Добавлено для выравнивания по центру */
 }
 
 .sidebar-buttons button {
     flex: 1;
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
+    max-width: 120px; /* Ограничиваем ширину кнопок */
 }
 
-.sidebar-buttons button:first-child {
+.save-button {
     background-color: #28a745;
+    width: 40px;
+    height: 40px;
 }
 
-.sidebar-buttons button:first-child:hover {
-    background-color: #218838;
-}
-
-.sidebar-buttons button:last-child {
-    background-color: #dc3545;
-}
-
-.sidebar-buttons button:last-child:hover {
-    background-color: #c82333;
+.save-button svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
 }
 
 .graph {
