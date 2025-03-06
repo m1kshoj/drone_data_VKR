@@ -155,3 +155,27 @@ app.put('/drones/:name', (req, res) => {
         res.status(500).json({ error: 'Ошибка при обновлении дрона' });
     }
 });
+
+// для карточки дрона
+app.get('/drones/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+        const drone = db.prepare(`
+            SELECT 
+                name,
+                model,
+                weight,
+                max_height,
+                max_temperature,
+                max_altitude 
+            FROM Drone 
+            WHERE name = ?
+        `).get(name);
+
+        if (!drone) return res.status(404).json({ error: 'Дрон не найден' });
+
+        res.json(drone);
+    } catch (error) {
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
