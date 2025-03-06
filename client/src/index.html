@@ -13,7 +13,7 @@
             <h2>Дроны</h2>
             <div class="search-bar">
                 <input type="text" placeholder="Поиск..." id="searchInput">
-                <button>+</button>
+                <button onclick="focusSearch()">+</button>
             </div>
             <ul class="drone-list">
                 <li>
@@ -99,7 +99,37 @@
     </div>
 </div>
 
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span id="modalMessage"></span>
+        <button onclick="closeModal()">Закрыть</button>
+    </div>
+</div>
+
 <script>
+    function focusSearch() {
+        document.getElementById('searchInput').focus();
+    }
+
+    function openModal(message) {
+        const modal = document.getElementById('modal');
+        const modalMessage = document.getElementById('modalMessage');
+        modalMessage.textContent = message;
+
+        modal.classList.remove('closing');
+        modal.classList.add('active');
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        modal.classList.add('closing');
+
+        setTimeout(() => {
+            modal.classList.remove('active', 'closing');
+            focusSearch();
+        }, 300);
+    }
+
     function toggleStartStop() {
         const startStopButton = document.getElementById('startStopButton');
         if (startStopButton.innerHTML.includes('bi-play')) {
@@ -117,50 +147,51 @@
             `;
             startStopButton.style.backgroundColor = '#28a745';
         }
+        focusSearch();
     }
 
     function deleteDrone(droneName) {
-        alert(`Удалить дрон: ${droneName}`);
+        openModal(`Удалить дрон: ${droneName}`);
     }
 
     function editDrone(droneName) {
-        alert(`Редактировать дрон: ${droneName}`);
+        openModal(`Редактировать дрон: ${droneName}`);
     }
 
     function saveData() {
-        alert('Данные сохранены!');
+        openModal('Данные сохранены!');
     }
 
     function moveLeft() {
-        alert('Двигаемся влево...');
+        openModal('Двигаемся влево...');
     }
 
     function moveForward() {
-        alert('Двигаемся вперёд...');
+        openModal('Двигаемся вперёд...');
     }
 
     function moveBackward() {
-        alert('Двигаемся назад...');
+        openModal('Двигаемся назад...');
     }
 
     function moveRight() {
-        alert('Двигаемся вправо...');
+        openModal('Двигаемся вправо...');
     }
 
     function decreaseAltitude() {
-        alert('Уменьшаем высоту...');
+        openModal('Уменьшаем высоту...');
     }
 
     function increaseAltitude() {
-        alert('Увеличиваем высоту...');
+        openModal('Увеличиваем высоту...');
     }
 
     function showFlights() {
-        alert('Открыть раздел "Полёты"');
+        openModal('Открыть раздел "Полёты"');
     }
 
     function showSettings() {
-        alert('Открыть раздел "Параметры"');
+        openModal('Открыть раздел "Параметры"');
     }
 </script>
 </body>
