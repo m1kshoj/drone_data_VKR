@@ -4,7 +4,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const Drone = require('./models/drone');
-const db = require('./db');
+const db = require('./db/db');
 
 const app = express();
 app.use(cors());
@@ -26,7 +26,6 @@ app.post('/launch/:id', (req, res) => {
     const droneId = req.params.id;
     console.log(`Запуск дрона: ${droneId}`);
 
-    // Проверяем, существует ли дрон в базе данных
     const droneData = db.prepare('SELECT * FROM Drone WHERE name = ?').get(droneId);
     if (!droneData) {
         return res.status(404).json({ error: 'Дрон не найден в базе данных' });
@@ -36,7 +35,7 @@ app.post('/launch/:id', (req, res) => {
     drones.set(droneId, drone);
     drone.takeOff();
 
-    const flightTime = 0; // Время полета (можно обновлять позже)
+    const flightTime = 0;
     db.prepare(`
         INSERT INTO Flight (drone_id, flight_time)
         VALUES (?, ?)
@@ -60,6 +59,16 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify(data));
     }, 1000);
     ws.on('close', () => clearInterval(interval));
+});
+
+app.get('/drones', (req, res) => {
+    try {
+        const drones = db.prepare('SELECT * FROM Drone').all();
+        res.json(drones); // Отправляем данные в формате JSON
+    } catch (error) {
+        console.error('Ошибка при получении дронов:', error);
+        res.status(500).json({ error: 'Ошибка при получении данных о дронах' });
+    }
 });
 
 app.delete('/delete/:id', (req, res) => {

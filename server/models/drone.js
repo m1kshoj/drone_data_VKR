@@ -1,4 +1,4 @@
-const db = require('./db'); // Подключаем базу данных
+const db = require('../db/db');
 
 class Drone {
     constructor(id) {
@@ -10,20 +10,19 @@ class Drone {
         this.temperature = this.baseTemperature;
         this.pressure = this.basePressure;
         this.interval = null;
-        this.flightId = null; // ID полета в базе данных
+        this.flightId = null;
     }
 
     takeOff() {
         this.isFlying = true;
 
-        // Сохраняем информацию о полете в базу данных
         const droneData = db.prepare('SELECT * FROM Drone WHERE name = ?').get(this.id);
         if (droneData) {
             const result = db.prepare(`
                 INSERT INTO Flight (drone_id, flight_time)
                 VALUES (?, ?)
             `).run(droneData.id, 0);
-            this.flightId = result.lastInsertRowid; // Сохраняем ID полета
+            this.flightId = result.lastInsertRowid;
         }
 
         this.simulateFlight();
@@ -38,7 +37,6 @@ class Drone {
                 this.pressure = Math.max(this.pressure, 200);
                 this.temperature = Math.max(this.temperature, -60);
 
-                // Обновляем данные о полете в базе данных
                 if (this.flightId) {
                     db.prepare(`
                         UPDATE Flight
