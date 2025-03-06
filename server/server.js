@@ -89,3 +89,69 @@ app.post('/drones', (req, res) => {
         res.status(500).json({ error: 'Ошибка при создании дрона' });
     }
 });
+
+// удалить дрона
+app.delete('/drones/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+
+        db.prepare('DELETE FROM Flight WHERE drone_id = (SELECT id FROM Drone WHERE name = ?)').run(name);
+
+        const result = db.prepare('DELETE FROM Drone WHERE name = ?').run(name);
+
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Дрон не найден' });
+        }
+
+        res.sendStatus(204);
+    } catch (error) {
+        console.error('Ошибка удаления:', error);
+        res.status(500).json({ error: 'Ошибка при удалении дрона' });
+    }
+});
+
+//данные дрона по имени
+app.get('/drones/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+        const drone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
+
+        if (!drone) {
+            return res.status(404).json({ error: 'Дрон не найден' });
+        }
+
+        res.json(drone);
+    } catch (error) {
+        console.error('Ошибка при получении дрона:', error);
+        res.status(500).json({ error: 'Ошибка при получении данных дрона' });
+    }
+});
+
+//обновление дрона
+app.put('/drones/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+        const { newName, model, weight, max_height, max_temperature, max_altitude } = req.body;
+
+        // Проверка существования дрона
+        const existingDrone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
+        if (!existingDrone) {
+            return res.status(404).json({ error: 'Дрон не найден' });
+        }
+
+        // Обновление данных
+        const result = db.prepare(`
+            UPDATE Drone 
+            SET name = ?, model = ?, weight = ?, max_height = ?, max_temperature = ?, max_altitude = ?
+            WHERE name = ?
+        `).run(newName, model, weight, max_height, max_temperature, max_altitude, name);
+
+        res.json({
+            message: 'Дрон успешно обновлен',
+            changes: result.changes
+        });
+    } catch (error) {
+        console.error('Ошибка при обновлении дрона:', error);
+        res.status(500).json({ error: 'Ошибка при обновлении дрона' });
+    }
+});

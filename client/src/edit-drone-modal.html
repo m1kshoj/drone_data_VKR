@@ -1,0 +1,34 @@
+<div class="modal-content create-drone-modal">
+    <h3>Изменить <span id="editingDroneName"></span></h3>
+
+    <form id="editDroneForm">
+        <div class="input-group">
+            <input type="text" id="edit_name" required placeholder=" ">
+            <label for="edit_name">Название дрона</label>
+        </div>
+        <div class="input-group">
+            <input type="text" id="edit_model" required placeholder=" ">
+            <label for="edit_model">Модель</label>
+        </div>
+        <div class="input-group">
+            <input type="number" id="edit_weight" step="0.1" required placeholder=" ">
+            <label for="edit_weight">Вес (кг)</label>
+        </div>
+        <div class="input-group">
+            <input type="number" id="edit_max_height" required placeholder=" ">
+            <label for="edit_max_height">Макс. высота (м)</label>
+        </div>
+        <div class="input-group">
+            <input type="number" id="edit_max_temperature" required placeholder=" ">
+            <label for="edit_max_temperature">Макс. температура (°C)</label>
+        </div>
+        <div class="input-group">
+            <input type="number" id="edit_max_altitude" required placeholder=" ">
+            <label for="edit_max_altitude">Макс. давление (гПа)</label>
+        </div>
+        <div class="modal-actions">
+            <button type="button" onclick="closeEditModal()">Отмена</button>
+            <button type="submit">Обновить</button>
+        </div>
+    </form>
+</div>

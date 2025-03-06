@@ -1,14 +1,29 @@
+let currentDroneName = null;
+
+function resetState() {
+    currentDroneName = null;
+}
+
 function focusSearch() {
     document.getElementById('searchInput').focus();
 }
 
 function openModal(message) {
     const modal = document.getElementById('modal');
-    const modalMessage = document.getElementById('modalMessage');
-    modalMessage.textContent = message;
 
-    modal.classList.remove('closing');
-    modal.classList.add('active');
+    modal.classList.remove('active', 'closing');
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-message">${message}</div>
+            <div class="modal-actions">
+                <button class="button-success" onclick="closeModal()">OK</button>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        modal.classList.add('active');
+    }, 50);
 }
 
 function closeModal() {
@@ -17,7 +32,19 @@ function closeModal() {
 
     setTimeout(() => {
         modal.classList.remove('active', 'closing');
-        focusSearch();
+        modal.innerHTML = '';
+    }, 300);
+}
+
+function closeModalWithAnimation(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+
+    modal.classList.add('closing');
+
+    setTimeout(() => {
+        modal.classList.remove('active', 'closing');
+        modal.innerHTML = '';
     }, 300);
 }
 
@@ -69,10 +96,12 @@ function closeCreateModal() {
         modal.innerHTML = '';
         focusSearch();
     }, 300);
+    resetState();
 }
 
 function initFormHandlers() {
     const form = document.getElementById('droneForm');
+    if (!form) return;
 
     form.onsubmit = async (e) => {
         e.preventDefault();
@@ -109,24 +138,6 @@ function initFormHandlers() {
     };
 }
 
-function validateDroneData(data) {
-    const errors = [];
-
-    if (!data.name) errors.push('• Укажите название дрона');
-    if (!data.model) errors.push('• Укажите модель дрона');
-    if (isNaN(data.weight) || data.weight <= 0) errors.push('• Некорректный вес');
-    if (isNaN(data.max_height) || data.max_height <= 0) errors.push('• Некорректная максимальная высота');
-    if (isNaN(data.max_temperature)) errors.push('• Некорректная температура');
-    if (isNaN(data.max_altitude) || data.max_altitude <= 0) errors.push('• Некорректное давление');
-
-    if (errors.length > 0) {
-        openModal('Исправьте ошибки:\n' + errors.join('\n'));
-        return false;
-    }
-    return true;
-}
-
-// Работа со списком дронов
 async function fetchDrones() {
     try {
         const response = await fetch('http://localhost:3000/drones');
@@ -139,6 +150,10 @@ async function fetchDrones() {
 }
 
 function createDroneCard(drone) {
+    if (!drone || !drone.name) {
+        console.error('Некорректные данные дрона:', drone);
+        return document.createElement('div');
+    }
     const li = document.createElement('li');
     li.innerHTML = `
         <span class="drone-name">${drone.name}</span>
@@ -160,27 +175,216 @@ function createDroneCard(drone) {
 
 async function renderDrones() {
     const droneList = document.querySelector('.drone-list');
-    droneList.innerHTML = '';
+    if (!droneList) return;
 
     try {
-        const drones = await fetchDrones();
+        const response = await fetch('http://localhost:3000/drones');
+        if (!response.ok) throw new Error('Ошибка загрузки');
+
+        const drones = await response.json();
+        droneList.innerHTML = '';
+
         drones.forEach(drone => {
             droneList.appendChild(createDroneCard(drone));
         });
     } catch (error) {
-        console.error('Ошибка рендеринга:', error);
+        openModal('Ошибка обновления списка: ' + error.message);
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', () => {
     renderDrones();
     document.querySelector('.search-bar button').onclick = openCreateModal;
 });
 
+// Удаление дрона
+async function deleteDrone(name) {
+    currentDroneName = name;
+    try {
+        const response = await fetch('confirm-delete-modal.html');
+        if (!response.ok) throw new Error('Не удалось загрузить форму');
+
+        const modalContent = await response.text();
+        const modal = document.getElementById('modal');
+        modal.innerHTML = modalContent;
+
+        setTimeout(() => {
+            const droneNameElement = document.getElementById('droneName');
+            if (droneNameElement) {
+                droneNameElement.textContent = name;
+                modal.classList.add('active');
+            } else {
+                throw new Error('Элемент droneName не найден');
+            }
+        }, 50);
+
+    } catch (error) {
+        openModal('Ошибка: ' + error.message);
+    }
+}
+
+async function confirmDelete() {
+    try {
+        const response = await fetch(`http://localhost:3000/drones/${currentDroneName}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Ошибка удаления');
+
+        const modal = document.getElementById('modal');
+        modal.classList.add('closing');
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-message">Дрон успешно удалён!</div>
+                <div class="modal-actions">
+                    <button class="button-success" onclick="closeModal()">OK</button>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('closing', 'active');
+        setTimeout(() => {
+            modal.classList.add('active');
+        }, 50);
+
+        await renderDrones();
+
+    } catch (error) {
+        openModal(`Ошибка: ${error.message}`);
+    } finally {
+        currentDroneName = null;
+    }
+}
+
+function closeDeleteModal() {
+    closeModalWithAnimation('modal', () => {
+        currentDroneName = null;
+    });
+}
+
+// Редактирование дрона
+async function editDrone(name) {
+    try {
+        const checkResponse = await fetch(`http://localhost:3000/drones/${name}`);
+        if (!checkResponse.ok) throw new Error('Дрон не существует');
+    } catch (error) {
+        openModal('Дрон не найден в системе');
+        return;
+    }
+
+    currentDroneName = name;
+    try {
+        const response = await fetch(`http://localhost:3000/drones/${encodeURIComponent(name)}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Дрон не найден');
+        }
+        const drone = await response.json();
+
+        const modalResponse = await fetch('edit-drone-modal.html');
+        const modalContent = await modalResponse.text();
+
+        const modal = document.getElementById('createDroneModal');
+        modal.innerHTML = modalContent;
+
+        setTimeout(() => {
+            document.getElementById('editingDroneName').textContent = drone.name;
+            document.getElementById('edit_name').value = drone.name;
+            document.getElementById('edit_model').value = drone.model;
+            document.getElementById('edit_weight').value = drone.weight;
+            document.getElementById('edit_max_height').value = drone.max_height;
+            document.getElementById('edit_max_temperature').value = drone.max_temperature;
+            document.getElementById('edit_max_altitude').value = drone.max_altitude;
+
+            modal.classList.add('active');
+            initEditFormHandlers();
+        }, 50);
+
+    } catch (error) {
+        openModal(`Ошибка: ${error.message}`);
+    }
+}
+
+function initEditFormHandlers() {
+    const form = document.getElementById('editDroneForm');
+    if (!form) return;
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+
+        try {
+            const formData = {
+                newName: form.querySelector('#edit_name').value.trim(),
+                model: form.querySelector('#edit_model').value.trim(),
+                weight: parseFloat(form.querySelector('#edit_weight').value),
+                max_height: parseFloat(form.querySelector('#edit_max_height').value),
+                max_temperature: parseFloat(form.querySelector('#edit_max_temperature').value),
+                max_altitude: parseFloat(form.querySelector('#edit_max_altitude').value)
+            };
+
+            if (!validateDroneData(formData)) return;
+
+
+            const response = await fetch(`http://localhost:3000/drones/${currentDroneName}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) throw new Error('Ошибка обновления');
+
+            closeEditModal();
+
+            openModal('Данные дрона успешно обновлены!');
+            await renderDrones();
+        } catch (error) {
+            openModal(`Ошибка: ${error.message}`);
+        }
+    };
+}
+
+function closeModalWithAnimation(modalId, callback) {
+    const modal = document.getElementById(modalId);
+    modal.classList.add('closing');
+
+    setTimeout(() => {
+        modal.classList.remove('active', 'closing');
+        modal.innerHTML = '';
+        if (callback) callback();
+    }, 300);
+}
+
+function closeEditModal() {
+    closeModalWithAnimation('createDroneModal', () => {
+        currentDroneName = null;
+    });
+}
+
+// Обновим валидацию
+function validateDroneData(data) {
+    const errors = [];
+
+    if (!data.newName && data.newName !== undefined) errors.push('• Укажите новое название дрона');
+    if (!data.model) errors.push('• Укажите модель дрона');
+    if (isNaN(data.weight) || data.weight <= 0) errors.push('• Некорректный вес');
+    if (isNaN(data.max_height) || data.max_height <= 0) errors.push('• Некорректная максимальная высота');
+    if (isNaN(data.max_temperature)) errors.push('• Некорректная температура');
+    if (isNaN(data.max_altitude) || data.max_altitude <= 0) errors.push('• Некорректное давление');
+
+    if (errors.length > 0) {
+        openModal('Исправьте ошибки:\n' + errors.join('\n'));
+        return false;
+    }
+    return true;
+}
+
+
 
 const stubFunctions = [
-    'deleteDrone', 'editDrone', 'saveData', 'moveLeft',
+    'saveData', 'moveLeft',
     'moveForward', 'moveBackward', 'moveRight',
     'decreaseAltitude', 'increaseAltitude',
     'showFlights', 'showSettings'
