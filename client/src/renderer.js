@@ -74,7 +74,6 @@ async function loadDroneDetails(droneName, element) {
         const detailsContainer = element.querySelector('.drone-details');
         if (!detailsContainer) return;
 
-        // Проверяем существование элементов перед обновлением
         const setContent = (selector, text) => {
             const el = detailsContainer.querySelector(selector);
             if (el) el.textContent = text;

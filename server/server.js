@@ -139,7 +139,6 @@ app.put('/drones/:name', (req, res) => {
             return res.status(404).json({ error: 'Дрон не найден' });
         }
 
-        // Обновление данных
         const result = db.prepare(`
             UPDATE Drone 
             SET name = ?, model = ?, weight = ?, max_height = ?, max_temperature = ?, max_altitude = ?
