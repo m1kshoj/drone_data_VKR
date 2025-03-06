@@ -1,4 +1,3 @@
-// server.js
 const WebSocket = require('ws');
 const express = require('express');
 const http = require('http');
@@ -16,12 +15,11 @@ const wss = new WebSocket.Server({ server });
 const drones = new Map();
 const PORT = 3000;
 
-// Запуск сервера
 server.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
 });
 
-// API для запуска дронов
+
 app.post('/launch/:id', (req, res) => {
     const droneId = req.params.id;
     console.log(`Запуск дрона: ${droneId}`);
@@ -64,19 +62,30 @@ wss.on('connection', (ws) => {
 app.get('/drones', (req, res) => {
     try {
         const drones = db.prepare('SELECT * FROM Drone').all();
-        res.json(drones); // Отправляем данные в формате JSON
+        res.json(drones);
     } catch (error) {
         console.error('Ошибка при получении дронов:', error);
         res.status(500).json({ error: 'Ошибка при получении данных о дронах' });
     }
 });
 
-app.delete('/delete/:id', (req, res) => {
-    const droneId = req.params.id;
-    const drone = drones.get(droneId);
-    if (drone) {
-        drone.land();
-        drones.delete(droneId);
+app.post('/drones', (req, res) => {
+    try {
+        const { name, model, weight, max_height, max_temperature, max_altitude } = req.body;
+
+        const existingDrone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
+        if (existingDrone) {
+            return res.status(400).json({ error: 'Дрон с таким именем уже существует' });
+        }
+
+        const result = db.prepare(`
+            INSERT INTO Drone (name, model, weight, max_height, max_temperature, max_altitude)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(name, model, weight, max_height, max_temperature, max_altitude);
+
+        res.status(201).json({ id: result.lastInsertRowid });
+    } catch (error) {
+        console.error('Ошибка при создании дрона:', error);
+        res.status(500).json({ error: 'Ошибка при создании дрона' });
     }
-    res.sendStatus(200);
 });

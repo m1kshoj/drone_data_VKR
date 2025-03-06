@@ -236,7 +236,7 @@ h2 {
     align-items: center;
     visibility: hidden;
     opacity: 0;
-    transition: all 0.3s ease;
+    transition: all 0.4s ease;
     z-index: 1000;
 }
 
@@ -257,7 +257,7 @@ h2 {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     transform: scale(0);
-    transition: all 0.3s ease;
+    transition: all 0.4s ease;
 }
 
 .modal.active .modal-content {
@@ -280,6 +280,105 @@ h2 {
 
 .modal-content button:hover {
     background-color: #0056b3;
+}
+
+.input-group {
+    position: relative;
+    margin-bottom: 25px;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+    background: #f8f9fa;
+}
+
+.input-group label {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    background: #f8f9fa;
+    padding: 0 5px;
+}
+
+.input-group input:focus,
+.input-group input:not(:placeholder-shown) {
+    border-color: #007bff;
+    outline: none;
+}
+
+.input-group input:focus + label,
+.input-group input:not(:placeholder-shown) + label {
+    top: -8px;
+    left: 8px;
+    font-size: 12px;
+    color: #007bff;
+    background: white;
+}
+/*ОКНО CREATE*/
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.modal-actions button[type="submit"] {
+    background-color: #28a745;
+    color: white;
+    border: none;
+}
+
+.modal-actions button[type="button"] {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+}
+
+/* ОКНО CREATE */
+.create-drone-modal {
+    max-width: 700px;
+    width: 90%;
+    padding: 30px;
+}
+
+.create-drone-modal .input-group {
+    margin-bottom: 20px;
+}
+
+.create-drone-modal .input-group input {
+    padding: 5px;
+    font-size: 14px;
+}
+
+.create-drone-modal .input-group label {
+    font-size: 14px;
+}
+
+.create-drone-modal .modal-actions {
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.create-drone-modal .modal-actions button {
+    padding: 10px 20px;
+    font-size: 14px;
 }
 
 @media (max-width: 768px) {

@@ -1,0 +1,39 @@
+<div class="modal-content create-drone-modal">
+    <h3>Создать новый дрон</h3>
+    <form id="droneForm">
+        <div class="input-group">
+            <input type="text" id="name" required placeholder=" ">
+            <label for="name">Название дрона</label>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="model" required placeholder=" ">
+            <label for="model">Модель</label>
+        </div>
+
+        <div class="input-group">
+            <input type="number" id="weight" step="0.1" required placeholder=" ">
+            <label for="weight">Вес (кг)</label>
+        </div>
+
+        <div class="input-group">
+            <input type="number" id="max_height" required placeholder=" ">
+            <label for="max_height">Макс. высота (м)</label>
+        </div>
+
+        <div class="input-group">
+            <input type="number" id="max_temperature" required placeholder=" ">
+            <label for="max_temperature">Макс. температура (°C)</label>
+        </div>
+
+        <div class="input-group">
+            <input type="number" id="max_altitude" required placeholder=" ">
+            <label for="max_altitude">Макс. давление (гПа)</label>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" onclick="closeCreateModal()">Отмена</button>
+            <button type="submit">Создать</button>
+        </div>
+    </form>
+</div>
