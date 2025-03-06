@@ -403,11 +403,29 @@ h2 {
 }
 
 .confirm-btn {
-    background-color: #28a745 !important;
+    background-color: #dc3545 !important;
+    color: white !important;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
 }
 
 .cancel-btn {
-    background-color: #dc3545 !important;
+    background-color: #28a745 !important;
+    color: white !important;
+    border: none;
+    padding: 10px 25px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.confirm-btn:hover {
+    background-color: #c82333 !important;
+}
+
+.cancel-btn:hover {
+    background-color: #218838 !important;
 }
 
 .button-success {
