@@ -7,6 +7,44 @@ body, html {
     background-color: #f4f4f4;
 }
 
+button {
+    transition:
+            background-color 0.3s ease,
+            transform 0.2s ease !important;
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+.modal-actions button,
+.confirm-btn,
+.cancel-btn,
+.button-success,
+.button-danger {
+    transition:
+            background-color 0.3s ease,
+            transform 0.2s ease !important;
+}
+
+.drone-controls button {
+    transition:
+            background-color 0.3s ease,
+            transform 0.2s ease !important;
+}
+
+.actions button {
+    transition:
+            background-color 0.3s ease,
+            transform 0.2s ease !important;
+}
+
+.save-button {
+    transition:
+            background-color 0.3s ease,
+            transform 0.2s ease !important;
+}
+
 .container {
     display: flex;
     height: 100vh;
