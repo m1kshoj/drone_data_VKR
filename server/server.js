@@ -133,17 +133,25 @@ app.put('/drones/:name', (req, res) => {
         const { name } = req.params;
         const { newName, model, weight, max_height, max_temperature, max_altitude } = req.body;
 
-        // Проверка существования дрона
         const existingDrone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
         if (!existingDrone) {
             return res.status(404).json({ error: 'Дрон не найден' });
         }
 
+        const now = new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Moscow' });
+
         const result = db.prepare(`
             UPDATE Drone 
-            SET name = ?, model = ?, weight = ?, max_height = ?, max_temperature = ?, max_altitude = ?
+            SET 
+                name = ?, 
+                model = ?, 
+                weight = ?, 
+                max_height = ?, 
+                max_temperature = ?, 
+                max_altitude = ?,
+                updated_at = ?
             WHERE name = ?
-        `).run(newName, model, weight, max_height, max_temperature, max_altitude, name);
+        `).run(newName, model, weight, max_height, max_temperature, max_altitude, now, name);
 
         res.json({
             message: 'Дрон успешно обновлен',
