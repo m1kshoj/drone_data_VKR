@@ -79,8 +79,9 @@ app.post('/drones', (req, res) => {
         }
 
         const result = db.prepare(`
-            INSERT INTO Drone (name, model, weight, max_height, max_temperature, max_altitude)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO Drone 
+            (name, model, weight, max_height, max_temperature, max_altitude, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).run(name, model, weight, max_height, max_temperature, max_altitude);
 
         res.status(201).json({ id: result.lastInsertRowid });
