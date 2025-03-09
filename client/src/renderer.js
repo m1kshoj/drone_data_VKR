@@ -48,7 +48,7 @@ function createDroneCard(drone) {
         </div>
     `;
 
-    li.addEventListener('click', async function(event) {
+    li.addEventListener('click', async function (event) {
         if (!event.target.closest('.actions')) {
             const wasActive = this.classList.contains('active');
 
@@ -243,7 +243,7 @@ function initFormHandlers() {
         try {
             const response = await fetch('http://localhost:3000/drones', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(formData)
             });
 
@@ -399,7 +399,7 @@ function initEditFormHandlers() {
 
             const response = await fetch(`http://localhost:3000/drones/${currentDroneName}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(formData)
             });
 
@@ -421,7 +421,6 @@ function closeEditModal() {
     });
 }
 
-// Обновим валидацию
 function validateDroneData(data) {
     const errors = [];
 
@@ -449,6 +448,20 @@ const stubFunctions = [
 stubFunctions.forEach(funcName => {
     window[funcName] = (...args) => {
         console.log(`Функция ${funcName} вызвана с аргументами:`, args);
-        openModal('Функция в разработке 🛠️');
+        openModal('свага тут?');
     };
 });
+
+
+// переключение темы
+function toggleTheme() {
+    document.body.classList.toggle('dark-theme');
+    const isDark = document.body.classList.contains('dark-theme');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.body.classList.toggle('dark-theme', savedTheme === 'dark');
+}
+initTheme();
