@@ -465,3 +465,44 @@ function initTheme() {
     document.body.classList.toggle('dark-theme', savedTheme === 'dark');
 }
 initTheme();
+
+// поиск дрона в searchbar
+function filterDrones() {
+    const searchValue = document.getElementById('searchInput').value.toLowerCase();
+    const droneItems = document.querySelectorAll('.drone-list .drone-item');
+
+    droneItems.forEach((item) => {
+        const droneName = item.querySelector('.drone-name').textContent.toLowerCase();
+        const droneModel = item.querySelector('.model').textContent.toLowerCase();
+
+        if (droneName.includes(searchValue) || droneModel.includes(searchValue)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+async function loadDrones() {
+    try {
+        const response = await fetch('http://localhost:3000/drones'); // Указываем полный URL
+        if (!response.ok) {
+            throw new Error(`Ошибка HTTP: ${response.status}`);
+        }
+        const drones = await response.json();
+
+        const droneList = document.querySelector('.drone-list');
+        droneList.innerHTML = '';
+
+        drones.forEach(drone => {
+            const droneCard = createDroneCard(drone);
+            droneList.appendChild(droneCard);
+        });
+
+        filterDrones();
+    } catch (error) {
+        console.error('Ошибка при загрузке дронов:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDrones);

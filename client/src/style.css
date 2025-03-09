@@ -552,9 +552,17 @@ body.dark-theme .search-bar button {
 
 /* анимация карточки дрона */
 .drone-item {
+    display: flex;
     flex-direction: column;
     padding: 10px !important;
     transition: all 0.3s ease;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.drone-item[hidden] {
+    display: none;
 }
 
 .drone-header {
