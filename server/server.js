@@ -69,6 +69,7 @@ app.get('/drones', (req, res) => {
     }
 });
 
+// создание дрона
 app.post('/drones', (req, res) => {
     try {
         const { name, model, weight, max_height, max_temperature, max_altitude } = req.body;
