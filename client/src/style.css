@@ -715,7 +715,10 @@ body:not(.dark-theme) .theme-icon.sun {
 }
 
 /* Темная тема для сайдбара и основного содержимого */
-body.dark-theme .sidebar,
+body.dark-theme .sidebar {
+    background-color: #333;
+}
+
 body.dark-theme .main-content {
     background-color: #2d2d2d;
 }
