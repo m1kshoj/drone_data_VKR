@@ -504,5 +504,133 @@ async function loadDrones() {
         console.error('Ошибка при загрузке дронов:', error);
     }
 }
-
 document.addEventListener('DOMContentLoaded', loadDrones);
+
+document.addEventListener('DOMContentLoaded', function() {
+    let currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+    const graphConfigs = {
+        'main-graph': {
+            data: [{
+                x: [1, 2, 3, 4, 5],
+                y: [10, 15, 13, 17, 21],
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Местоположение',
+                line: { color: '#007bff' },
+                marker: { color: '#007bff' }
+            }],
+            layout: {
+                title: 'График местоположения',
+                xaxis: { title: 'Время (сек)' },
+                yaxis: { title: 'Координата Y (м)' }
+            }
+        },
+        'altitude-graph': {
+            data: [{
+                x: [1, 2, 3, 4, 5],
+                y: [100, 200, 150, 300, 250],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Высота',
+                line: { color: '#28a745' }
+            }],
+            layout: {
+                title: 'Высота полета',
+                xaxis: { title: 'Время (сек)' },
+                yaxis: { title: 'Метры' }
+            }
+        },
+        'temperature-graph': {
+            data: [{
+                x: [1, 2, 3, 4, 5],
+                y: [20, 22, 21, 23, 24],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Температура',
+                line: { color: '#dc3545' }
+            }],
+            layout: {
+                title: 'Температура',
+                xaxis: { title: 'Время (сек)' },
+                yaxis: { title: '°C' }
+            }
+        },
+        'pressure-graph': {
+            data: [{
+                x: [1, 2, 3, 4, 5],
+                y: [1000, 1010, 1005, 1015, 1020],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Давление',
+                line: { color: '#ffc107' }
+            }],
+            layout: {
+                title: 'Атмосферное давление',
+                xaxis: { title: 'Время (сек)' },
+                yaxis: { title: 'гПа' }
+            }
+        }
+    };
+
+    function initGraphs(theme) {
+        const textColor = theme === 'dark' ? '#fff' : '#000';
+        const gridColor = theme === 'dark' ? '#555' : '#ddd';
+
+        Object.keys(graphConfigs).forEach(graphId => {
+            const config = graphConfigs[graphId];
+            Plotly.react(graphId, config.data, {
+                ...config.layout,
+                plot_bgcolor: 'transparent',
+                paper_bgcolor: 'transparent',
+                font: {
+                    family: 'Arial, sans-serif'
+                },
+                xaxis: {
+                    ...config.layout.xaxis,
+                    showgrid: true,
+                    gridcolor: gridColor,
+                    linecolor: gridColor,
+                    zerolinecolor: gridColor
+                },
+                yaxis: {
+                    ...config.layout.yaxis,
+                    showgrid: true,
+                    gridcolor: gridColor,
+                    linecolor: gridColor,
+                    zerolinecolor: gridColor
+                },
+                margin: { t: 40, b: 60, l: 60, r: 30 },
+                autosize: true
+            }, {
+                responsive: true,
+                displayModeBar: false
+            });
+        });
+
+        setTimeout(() => {
+            Object.keys(graphConfigs).forEach(graphId => {
+                Plotly.Plots.resize(graphId);
+            });
+        }, 100);
+    }
+
+    const resizeHandler = () => {
+        Object.keys(graphConfigs).forEach(graphId => {
+            Plotly.Plots.resize(graphId).catch(() => {});
+        });
+    };
+
+    initGraphs(currentTheme);
+    window.addEventListener('resize', resizeHandler);
+
+    window.toggleTheme = function() {
+        document.body.classList.toggle('dark-theme');
+        currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+        initGraphs(currentTheme);
+    };
+
+    window.addEventListener('beforeunload', () => {
+        window.removeEventListener('resize', resizeHandler);
+    });
+});
+
