@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление дронами</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
 </head>
-<body>
+<body class="dark-theme">
 <div class="container">
     <div class="sidebar">
         <div>
@@ -72,11 +73,11 @@
                 </button>
             </div>
         </div>
-        <div class="graph main-graph"></div>
+        <div class="graph main-graph" id="main-graph"></div>
         <div class="small-graphs">
-            <div class="graph" id="altitude-graph">График высоты</div>
-            <div class="graph" id="temperature-graph">График температуры</div>
-            <div class="graph" id="pressure-graph">График давления</div>
+            <div class="graph" id="altitude-graph"></div>
+            <div class="graph" id="temperature-graph"></div>
+            <div class="graph" id="pressure-graph"></div>
         </div>
     </div>
 </div>
