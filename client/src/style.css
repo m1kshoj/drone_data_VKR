@@ -1,50 +1,40 @@
+/* Общие стили для body и html */
 body, html {
     margin: 0;
     padding: 0;
     height: 100%;
     overflow: hidden;
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+    background-color: #1a1a1a;
+    color: #ffffff;
 }
 
-button {
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease !important;
-}
-
-button:hover {
-    transform: scale(1.05);
-}
-
+/* Общие стили для кнопок */
+button,
 .modal-actions button,
 .confirm-btn,
 .cancel-btn,
 .button-success,
-.button-danger {
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease !important;
-}
-
-.drone-controls button {
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease !important;
-}
-
-.actions button {
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease !important;
-}
-
+.button-danger,
+.drone-controls button,
+.actions button,
 .save-button {
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease !important;
+    transition: background-color 0.3s ease, transform 0.2s ease !important;
 }
 
+button:hover,
+.modal-actions button:hover,
+.confirm-btn:hover,
+.cancel-btn:hover,
+.button-success:hover,
+.button-danger:hover,
+.drone-controls button:hover,
+.actions button:hover,
+.save-button:hover {
+    transform: scale(1.05);
+}
+
+/* Стили для контейнера и основного содержимого */
 .container {
     display: flex;
     height: 100vh;
@@ -67,8 +57,11 @@ button:hover {
     flex: 1;
     display: flex;
     flex-direction: column;
+    padding: 20px;
+    gap: 15px;
 }
 
+/* Стили для заголовка */
 .header {
     display: flex;
     justify-content: space-between;
@@ -80,6 +73,7 @@ h2 {
     margin-top: 0;
 }
 
+/* Стили для поисковой строки */
 .search-bar {
     display: flex;
     gap: 10px;
@@ -94,41 +88,28 @@ h2 {
     font-size: 16px;
 }
 
-.search-bar button, .drone-controls button, .altitude-buttons button, .sidebar-buttons button, .save-button {
+.search-bar button,
+.drone-controls button,
+.altitude-buttons button,
+.sidebar-buttons button,
+.save-button {
     padding: 10px;
     border: none;
     border-radius: 4px;
     background-color: #007bff;
     color: white;
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
-.search-bar button:hover, .drone-controls button:hover, .altitude-buttons button:hover, .sidebar-buttons button:hover, .save-button:hover {
-    background-color: #0056b3;
-    transform: scale(1.05);
-}
-
-.search-bar button {
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
-    background-color: #007bff;
-    color: white;
-    cursor: pointer;
-    transition:
-            background-color 0.3s ease,
-            transform 0.2s ease;
-}
-
-body.dark-theme .search-bar button {
+.search-bar button:hover,
+.drone-controls button:hover,
+.altitude-buttons button:hover,
+.sidebar-buttons button:hover,
+.save-button:hover {
     background-color: #0056b3;
 }
 
-.search-bar button:hover {
-    transform: scale(1.05);
-}
-
+/* Стили для списка дронов */
 .drone-list {
     list-style: none;
     padding: 0;
@@ -166,7 +147,6 @@ body.dark-theme .search-bar button {
     justify-content: center;
     width: 30px;
     height: 30px;
-    transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
 .drone-list li .actions button.delete {
@@ -181,14 +161,13 @@ body.dark-theme .search-bar button {
 
 .drone-list li .actions button.delete:hover {
     background-color: #c82333;
-    transform: scale(1.05);
 }
 
 .drone-list li .actions button.edit:hover {
     background-color: #e0a800;
-    transform: scale(1.05);
 }
 
+/* Стили для контейнера управления */
 .controls-container {
     display: flex;
     flex-direction: column;
@@ -262,10 +241,11 @@ body.dark-theme .search-bar button {
     fill: currentColor;
 }
 
+/* Стили для графиков */
 .graph {
-    background-color: #e0e0e0;
-    border-radius: 4px;
-    margin-bottom: 10px;
+    background-color: #2d2d2d;
+    border-radius: 8px;
+    width: 100%;
 }
 
 .main-graph {
@@ -274,14 +254,57 @@ body.dark-theme .search-bar button {
 
 .small-graphs {
     display: flex;
-    gap: 10px;
+    gap: 15px;
     height: 40vh;
 }
 
 .small-graphs .graph {
     flex: 1;
+    max-width: none !important;
 }
 
+.js-plotly-plot .plot-container {
+    width: 100% !important;
+    height: 100% !important;
+    padding: 15px;
+}
+
+.main-graph, .small-graphs .graph {
+    contain: size layout paint style;
+}
+
+.js-plotly-plot {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+body.dark-theme .js-plotly-plot text,
+body.dark-theme .js-plotly-plot .gtitle,
+body.dark-theme .js-plotly-plot .xtitle,
+body.dark-theme .js-plotly-plot .ytitle,
+body.dark-theme .js-plotly-plot .xaxis text,
+body.dark-theme .js-plotly-plot .yaxis text {
+    fill: #fff !important;
+}
+
+body:not(.dark-theme) .js-plotly-plot text,
+body:not(.dark-theme) .js-plotly-plot .gtitle,
+body:not(.dark-theme) .js-plotly-plot .xtitle,
+body:not(.dark-theme) .js-plotly-plot .ytitle,
+body:not(.dark-theme) .js-plotly-plot .xaxis text,
+body:not(.dark-theme) .js-plotly-plot .yaxis text {
+    fill: #000 !important;
+}
+
+.js-plotly-plot .gtitle {
+    dominant-baseline: auto !important;
+}
+
+body:not(.dark-theme) .graph {
+    background-color: #fff;
+}
+
+/* Стили для модальных окон */
 .modal {
     position: fixed;
     top: 0;
@@ -316,9 +339,7 @@ body.dark-theme .search-bar button {
     box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     transform: scale(0.95);
     opacity: 0;
-    transition:
-            transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-            opacity 0.2s ease-out;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out;
     max-width: 500px;
     width: 90%;
     text-align: center;
@@ -346,10 +367,6 @@ body.dark-theme .search-bar button {
 
 .modal.active .modal-content {
     transform: scale(1);
-}
-
-.modal.active .modal-content {
-    transform: scale(1);
     opacity: 1;
 }
 
@@ -367,6 +384,7 @@ body.dark-theme .search-bar button {
     background-color: #0056b3;
 }
 
+/* Стили для групп ввода */
 .input-group {
     position: relative;
     margin-bottom: 25px;
@@ -408,8 +426,8 @@ body.dark-theme .search-bar button {
     color: #007bff;
     background: white;
 }
-/*ОКНО CREATE*/
 
+/* Стили для модального окна создания дрона */
 .modal-actions button[type="submit"] {
     background-color: #28a745;
     color: white;
@@ -422,7 +440,6 @@ body.dark-theme .search-bar button {
     border: none;
 }
 
-/* ОКНО CREATE */
 .create-drone-modal {
     max-width: 700px;
     width: 90%;
@@ -492,10 +509,7 @@ body.dark-theme .search-bar button {
     padding: 0.8rem 2rem;
     border-radius: 0.5rem;
     font-weight: 500;
-    transition:
-            background 0.2s ease,
-            transform 0.2s ease,
-            box-shadow 0.2s ease;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
     border: none;
     cursor: pointer;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -513,10 +527,7 @@ body.dark-theme .search-bar button {
     padding: 0.8rem 2rem;
     border-radius: 0.5rem;
     font-weight: 500;
-    transition:
-            background 0.2s ease,
-            transform 0.2s ease,
-            box-shadow 0.2s ease;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
     border: none;
     cursor: pointer;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -550,7 +561,7 @@ body.dark-theme .search-bar button {
     box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
 }
 
-/* анимация карточки дрона */
+/* Стили для карточки дрона */
 .drone-item {
     display: flex;
     flex-direction: column;
@@ -627,6 +638,7 @@ body.dark-theme .search-bar button {
     font-size: 14px;
 }
 
+/* Медиа-запросы для мобильных устройств */
 @media (max-width: 480px) {
     .modal-content {
         padding: 1.5rem;
@@ -647,11 +659,7 @@ body.dark-theme .search-bar button {
     }
 }
 
-
-
-
-
-/* темная тема */
+/* Темная тема */
 body {
     background-color: #1a1a1a;
     color: #ffffff;
@@ -706,7 +714,7 @@ body:not(.dark-theme) .theme-icon.sun {
     opacity: 0;
 }
 
-/* темная тема */
+/* Темная тема для сайдбара и основного содержимого */
 body.dark-theme .sidebar,
 body.dark-theme .main-content {
     background-color: #2d2d2d;
@@ -809,7 +817,7 @@ body.dark-theme .modal-actions .cancel-btn:hover {
     background-color: #c82333;
 }
 
-/* скролл */
+/* Стили для скроллбара */
 ::-webkit-scrollbar {
     width: 5px;
 }
@@ -846,3 +854,53 @@ body.dark-theme ::-webkit-scrollbar-thumb:hover {
     background: #777;
 }
 
+body:not(.dark-theme) .sidebar {
+    background-color: #fff;
+}
+
+body:not(.dark-theme) .main-content {
+    background-color: #f4f4f4;
+}
+
+/* Стили для графиков в темной теме */
+.js-plotly-plot .plotly .main-svg {
+    background-color: transparent !important;
+}
+
+.js-plotly-plot .plotly .gridlayer .grid {
+    stroke: #555 !important;
+}
+
+.js-plotly-plot .plotly .axis-title,
+.js-plotly-plot .plotly .xtitle,
+.js-plotly-plot .plotly .ytitle {
+    fill: #fff !important;
+}
+
+.js-plotly-plot .plotly .xaxis .tick text,
+.js-plotly-plot .plotly .yaxis .tick text {
+    fill: #fff !important;
+}
+
+.js-plotly-plot .plotly .xaxis line,
+.js-plotly-plot .plotly .yaxis line {
+    stroke: #555 !important;
+}
+
+.js-plotly-plot .plotly .xaxis .tick line,
+.js-plotly-plot .plotly .yaxis .tick line {
+    stroke: #555 !important;
+}
+
+.js-plotly-plot .plotly .legend text {
+    fill: #fff !important;
+}
+
+.js-plotly-plot .plotly .hoverlayer .hovertext text {
+    fill: #fff !important;
+}
+
+.js-plotly-plot .plotly .hoverlayer .hovertext path {
+    fill: #333 !important;
+    stroke: #555 !important;
+}
