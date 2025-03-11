@@ -38,11 +38,11 @@ function createDroneCard(drone) {
                 <span class="max-height">Загрузка...</span>
             </div>
             <div class="detail-row">
-                <span>Макс. температура:</span>
+                <span>Мин. температура:</span>
                 <span class="max-temp">Загрузка...</span>
             </div>
             <div class="detail-row">
-                <span>Макс. давление:</span>
+                <span>Мин. давление:</span>
                 <span class="max-pressure">Загрузка...</span>
             </div>
         </div>
@@ -485,7 +485,7 @@ function filterDrones() {
 
 async function loadDrones() {
     try {
-        const response = await fetch('http://localhost:3000/drones'); // Указываем полный URL
+        const response = await fetch('http://localhost:3000/drones');
         if (!response.ok) {
             throw new Error(`Ошибка HTTP: ${response.status}`);
         }
@@ -511,29 +511,60 @@ document.addEventListener('DOMContentLoaded', function() {
     const graphConfigs = {
         'main-graph': {
             data: [{
-                x: [1, 2, 3, 4, 5],
-                y: [10, 15, 13, 17, 21],
+                x: [0],
+                y: [0],
                 type: 'scatter',
-                mode: 'lines+markers',
+                mode: 'markers',
                 name: 'Местоположение',
-                line: { color: '#007bff' },
-                marker: { color: '#007bff' }
+                marker: {
+                    color: '#007bff',
+                    size: 10
+                }
             }],
             layout: {
                 title: 'График местоположения',
-                xaxis: { title: 'Время (сек)' },
-                yaxis: { title: 'Координата Y (м)' }
+                xaxis: {
+                    title: 'Ось X (м)',
+                    range: [-10, 10],
+                    showgrid: true,
+                    zeroline: true,
+                    zerolinecolor: currentTheme === 'dark' ? '#555' : '#ddd'
+                },
+                yaxis: {
+                    title: 'Ось Y (м)',
+                    range: [-10, 10],
+                    showgrid: true,
+                    zeroline: true,
+                    zerolinecolor: currentTheme === 'dark' ? '#555' : '#ddd'
+                },
+                shapes: [
+                    {
+                        type: 'line',
+                        x0: -10,
+                        y0: 0,
+                        x1: 10,
+                        y1: 0,
+                        line: {
+                            color: currentTheme === 'dark' ? '#555' : '#ddd',
+                            width: 2
+                        }
+                    },
+                    {
+                        type: 'line',
+                        x0: 0,
+                        y0: -10,
+                        x1: 0,
+                        y1: 10,
+                        line: {
+                            color: currentTheme === 'dark' ? '#555' : '#ddd',
+                            width: 2
+                        }
+                    }
+                ]
             }
         },
         'altitude-graph': {
-            data: [{
-                x: [1, 2, 3, 4, 5],
-                y: [100, 200, 150, 300, 250],
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Высота',
-                line: { color: '#28a745' }
-            }],
+            data: [],
             layout: {
                 title: 'Высота полета',
                 xaxis: { title: 'Время (сек)' },
@@ -541,14 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         'temperature-graph': {
-            data: [{
-                x: [1, 2, 3, 4, 5],
-                y: [20, 22, 21, 23, 24],
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Температура',
-                line: { color: '#dc3545' }
-            }],
+            data: [],
             layout: {
                 title: 'Температура',
                 xaxis: { title: 'Время (сек)' },
@@ -556,14 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         'pressure-graph': {
-            data: [{
-                x: [1, 2, 3, 4, 5],
-                y: [1000, 1010, 1005, 1015, 1020],
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Давление',
-                line: { color: '#ffc107' }
-            }],
+            data: [],
             layout: {
                 title: 'Атмосферное давление',
                 xaxis: { title: 'Время (сек)' },
@@ -583,6 +600,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 plot_bgcolor: 'transparent',
                 paper_bgcolor: 'transparent',
                 font: {
+                    color: textColor,
                     family: 'Arial, sans-serif'
                 },
                 xaxis: {
@@ -633,4 +651,3 @@ document.addEventListener('DOMContentLoaded', function() {
         window.removeEventListener('resize', resizeHandler);
     });
 });
-
