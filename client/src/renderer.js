@@ -1,4 +1,10 @@
 let currentDroneName = null;
+let x = 0;
+let y = 0;
+let speedX = 0;
+let speedY = 0;
+let isFlying = false;
+let path = [{ x: 0, y: 0 }];
 
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
@@ -174,20 +180,23 @@ function closeModalWithAnimation(modalId) {
 // Управление дронами
 function toggleStartStop() {
     const startStopButton = document.getElementById('startStopButton');
-    const isPlaying = startStopButton.innerHTML.includes('bi-play');
+    isFlying = !isFlying; // Переключаем состояние движения
 
-    startStopButton.innerHTML = isPlaying ? `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
-            <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
-        </svg>
-    ` : `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16">
-            <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
-        </svg>
-    `;
-
-    startStopButton.style.backgroundColor = isPlaying ? '#dc3545' : '#28a745';
-    focusSearch();
+    if (isFlying) {
+        startStopButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
+                <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
+            </svg>
+        `;
+        startStopButton.style.backgroundColor = '#dc3545'; // Красный цвет для "Стоп"
+    } else {
+        startStopButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16">
+                <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
+            </svg>
+        `;
+        startStopButton.style.backgroundColor = '#28a745'; // Зеленый цвет для "Старт"
+    }
 }
 
 // Создание дрона
@@ -438,19 +447,19 @@ function validateDroneData(data) {
     return true;
 }
 
-const stubFunctions = [
-    'saveData', 'moveLeft',
-    'moveForward', 'moveBackward', 'moveRight',
-    'decreaseAltitude', 'increaseAltitude',
-    'showFlights', 'showSettings'
-];
-
-stubFunctions.forEach(funcName => {
-    window[funcName] = (...args) => {
-        console.log(`Функция ${funcName} вызвана с аргументами:`, args);
-        openModal('свага тут?');
-    };
-});
+// const stubFunctions = [
+//     'saveData', 'moveLeft',
+//     'moveForward', 'moveBackward', 'moveRight',
+//     'decreaseAltitude', 'increaseAltitude',
+//     'showFlights', 'showSettings'
+// ];
+//
+// stubFunctions.forEach(funcName => {
+//     window[funcName] = (...args) => {
+//         console.log(`Функция ${funcName} вызвана с аргументами:`, args);
+//         openModal('свага тут?');
+//     };
+// });
 
 
 // переключение темы
@@ -650,4 +659,120 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('beforeunload', () => {
         window.removeEventListener('resize', resizeHandler);
     });
+});
+
+// движение дрона на графике
+function moveForward() {
+    if (isFlying) speedY = 1;
+}
+
+function moveBackward() {
+    if (isFlying) speedY = -1;
+}
+
+function moveLeft() {
+    if (isFlying) speedX = -1;
+}
+
+function moveRight() {
+    if (isFlying) speedX = 1;
+}
+
+function updateDronePosition() {
+    if (isFlying) {
+        x += speedX * 0.1;
+        y += speedY * 0.1;
+
+        x = Math.max(-10, Math.min(10, x));
+        y = Math.max(-10, Math.min(10, y));
+
+        path.push({ x, y });
+
+        Plotly.react('main-graph', [{
+            x: path.map(p => p.x),
+            y: path.map(p => p.y),
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Местоположение',
+            line: {
+                color: '#007bff',
+                width: 2
+            },
+            marker: {
+                color: '#007bff',
+                size: 10
+            }
+        }], {
+            title: 'График местоположения',
+            xaxis: { title: 'Ось X (м)', range: [-10, 10] },
+            yaxis: { title: 'Ось Y (м)', range: [-10, 10] },
+            shapes: [
+                {
+                    type: 'line',
+                    x0: -10,
+                    y0: 0,
+                    x1: 10,
+                    y1: 0,
+                    line: {
+                        color: document.body.classList.contains('dark-theme') ? '#555' : '#ddd',
+                        width: 2
+                    }
+                },
+                {
+                    type: 'line',
+                    x0: 0,
+                    y0: -10,
+                    x1: 0,
+                    y1: 10,
+                    line: {
+                        color: document.body.classList.contains('dark-theme') ? '#555' : '#ddd',
+                        width: 2
+                    }
+                }
+            ]
+        });
+    }
+
+    requestAnimationFrame(updateDronePosition);
+}
+
+updateDronePosition();
+
+// управление клавишами
+document.addEventListener('keydown', (event) => {
+    if (isFlying) {
+        switch (event.code) {
+            case 'KeyW':
+                speedY = 1;
+                break;
+            case 'KeyS':
+                speedY = -1;
+                break;
+            case 'KeyA':
+                speedX = -1;
+                break;
+            case 'KeyD':
+                speedX = 1;
+                break;
+        }
+    }
+
+    if (event.code === 'KeyF') {
+        toggleStartStop();
+    }
+});
+
+document.addEventListener('keyup', (event) => {
+    if (isFlying) {
+        switch (event.code) {
+            case 'KeyW':
+            case 'KeyS':
+                speedY = 0;
+                break;
+            case 'KeyA':
+            case 'KeyD':
+                speedX = 0;
+                break;
+        }
+    }
 });
