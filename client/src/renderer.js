@@ -4,7 +4,7 @@ let y = 0;
 let speedX = 0;
 let speedY = 0;
 let isFlying = false;
-let path = [{ x: 0, y: 0 }];
+let path = [{x: 0, y: 0}];
 
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
@@ -180,22 +180,27 @@ function closeModalWithAnimation(modalId) {
 // Управление дронами
 function toggleStartStop() {
     const startStopButton = document.getElementById('startStopButton');
-    isFlying = !isFlying; // Переключаем состояние движения
+    isFlying = !isFlying;
 
     if (isFlying) {
+        altitude = 0;
+        time = 0;
+        isMaxAltitudeReached = false;
+
+        Plotly.purge('altitude-graph');
+        initAltitudeGraph();
+
         startStopButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
                 <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
-            </svg>
-        `;
-        startStopButton.style.backgroundColor = '#dc3545'; // Красный цвет для "Стоп"
+            </svg>`;
+        startStopButton.style.backgroundColor = '#dc3545';
     } else {
         startStopButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16">
                 <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
-            </svg>
-        `;
-        startStopButton.style.backgroundColor = '#28a745'; // Зеленый цвет для "Старт"
+            </svg>`;
+        startStopButton.style.backgroundColor = '#28a745';
     }
 }
 
@@ -473,6 +478,7 @@ function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.body.classList.toggle('dark-theme', savedTheme === 'dark');
 }
+
 initTheme();
 
 // поиск дрона в searchbar
@@ -513,9 +519,10 @@ async function loadDrones() {
         console.error('Ошибка при загрузке дронов:', error);
     }
 }
+
 document.addEventListener('DOMContentLoaded', loadDrones);
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     let currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
     const graphConfigs = {
         'main-graph': {
@@ -576,24 +583,24 @@ document.addEventListener('DOMContentLoaded', function() {
             data: [],
             layout: {
                 title: 'Высота полета',
-                xaxis: { title: 'Время (сек)' },
-                yaxis: { title: 'Метры' }
+                xaxis: {title: 'Время (сек)'},
+                yaxis: {title: 'Метры'}
             }
         },
         'temperature-graph': {
             data: [],
             layout: {
                 title: 'Температура',
-                xaxis: { title: 'Время (сек)' },
-                yaxis: { title: '°C' }
+                xaxis: {title: 'Время (сек)'},
+                yaxis: {title: '°C'}
             }
         },
         'pressure-graph': {
             data: [],
             layout: {
                 title: 'Атмосферное давление',
-                xaxis: { title: 'Время (сек)' },
-                yaxis: { title: 'гПа' }
+                xaxis: {title: 'Время (сек)'},
+                yaxis: {title: 'гПа'}
             }
         }
     };
@@ -626,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     linecolor: gridColor,
                     zerolinecolor: gridColor
                 },
-                margin: { t: 40, b: 60, l: 60, r: 30 },
+                margin: {t: 40, b: 60, l: 60, r: 30},
                 autosize: true
             }, {
                 responsive: true,
@@ -643,14 +650,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const resizeHandler = () => {
         Object.keys(graphConfigs).forEach(graphId => {
-            Plotly.Plots.resize(graphId).catch(() => {});
+            Plotly.Plots.resize(graphId).catch(() => {
+            });
         });
     };
 
     initGraphs(currentTheme);
     window.addEventListener('resize', resizeHandler);
 
-    window.toggleTheme = function() {
+    window.toggleTheme = function () {
         document.body.classList.toggle('dark-theme');
         currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
         initGraphs(currentTheme);
@@ -660,6 +668,138 @@ document.addEventListener('DOMContentLoaded', function() {
         window.removeEventListener('resize', resizeHandler);
     });
 });
+
+let altitude = 0;
+let time = 0;
+let altitudeData = {
+    x: [],
+    y: [],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#28a745', width: 2 }
+};
+let isMaxAltitudeReached = false;
+
+function initAltitudeGraph() {
+    const layout = {
+        title: 'Высота полета',
+        xaxis: {
+            title: 'Время (сек)',
+            range: [0, 300],
+            showgrid: true,
+            gridcolor: '#555',
+            zerolinecolor: '#555'
+        },
+        yaxis: {
+            title: 'Метры',
+            range: [0, 100],
+            showgrid: true,
+            gridcolor: '#555',
+            zerolinecolor: '#555'
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        font: {
+            color: '#fff',
+            family: 'Arial, sans-serif'
+        },
+        margin: { t: 40, b: 60, l: 60, r: 30 }
+    };
+
+    Plotly.newPlot('altitude-graph', [{
+        x: [],
+        y: [],
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Высота',
+        line: {
+            color: '#28a745',
+            width: 2
+        }
+    }], layout);
+}
+
+// Функция для обновления высоты
+function updateAltitude() {
+    if (!isFlying) return;
+
+    time += 1;
+
+    if (!isMaxAltitudeReached) {
+        altitude += 1;
+        if (altitude >= 50) isMaxAltitudeReached = true;
+    } else {
+        // Колебания ±1.5 метра вокруг 50
+        altitude = 50 + Math.sin(time * 0.5) * 1.5;
+    }
+
+    Plotly.extendTraces('altitude-graph', {
+        x: [[time]],
+        y: [[altitude]]
+    }, [0]);
+
+    if (time > 300) {
+        Plotly.relayout('altitude-graph', {
+            'xaxis.range[0]': time - 300,
+            'xaxis.range[1]': time
+        });
+    }
+
+    const yMax = Math.min(100, Math.max(100, altitude + 10));
+    Plotly.relayout('altitude-graph', {
+        'yaxis.range[1]': yMax
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initAltitudeGraph();
+    setInterval(updateAltitude, 1000);
+});
+
+setInterval(updateAltitude, 1000);
+
+// Функция для обновления графика
+function updateAltitudeGraph(time, altitude) {
+    altitudeData.x.push(time);
+    altitudeData.y.push(altitude);
+
+    if (altitudeData.x.length > 100) {
+        altitudeData.x.shift();
+        altitudeData.y.shift();
+    }
+
+    const yRange = [40, Math.max(40, altitude + 10)]; // Минимум 40, максимум высота + 10
+
+    Plotly.react('altitude-graph', [{
+        x: altitudeData.x,
+        y: altitudeData.y,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Высота',
+        line: {
+            color: '#28a745',
+            width: 2
+        }
+    }], {
+        title: 'Высота полета',
+        xaxis: { title: 'Время (сек)' },
+        yaxis: { title: 'Метры', range: yRange } // Динамический диапазон по оси Y
+    });
+}
+
+setInterval(() => {
+    if (isFlying) {
+        updateAltitude();
+    }
+}, 1000); // Обновление каждую секунду
+
+function startAltitudeUpdates() {
+    updateAltitude();
+}
+
+document.addEventListener('DOMContentLoaded', initAltitudeGraph);
+
+startAltitudeUpdates();
 
 // движение дрона на графике
 function moveForward() {
@@ -686,7 +826,7 @@ function updateDronePosition() {
         x = Math.max(-10, Math.min(10, x));
         y = Math.max(-10, Math.min(10, y));
 
-        path.push({ x, y });
+        path.push({x, y});
 
         Plotly.react('main-graph', [{
             x: path.map(p => p.x),
@@ -704,8 +844,8 @@ function updateDronePosition() {
             }
         }], {
             title: 'График местоположения',
-            xaxis: { title: 'Ось X (м)', range: [-10, 10] },
-            yaxis: { title: 'Ось Y (м)', range: [-10, 10] },
+            xaxis: {title: 'Ось X (м)', range: [-10, 10]},
+            yaxis: {title: 'Ось Y (м)', range: [-10, 10]},
             shapes: [
                 {
                     type: 'line',
