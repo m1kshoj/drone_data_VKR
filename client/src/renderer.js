@@ -183,24 +183,31 @@ function toggleStartStop() {
     isFlying = !isFlying;
 
     if (isFlying) {
-        altitude = 0;
-        time = 0;
-        isMaxAltitudeReached = false;
-
-        Plotly.purge('altitude-graph');
-        initAltitudeGraph();
+        if (altitude === 0) {
+            time = 0;
+            altitude = 0;
+            isMaxAltitudeReached = false;
+            Plotly.purge('altitude-graph');
+            initAltitudeGraph();
+        }
 
         startStopButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16">
                 <path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/>
             </svg>`;
         startStopButton.style.backgroundColor = '#dc3545';
+
+        altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+        droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
     } else {
         startStopButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16">
                 <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
             </svg>`;
         startStopButton.style.backgroundColor = '#28a745';
+
+        cancelAnimationFrame(altitudeAnimationFrameId);
+        cancelAnimationFrame(droneAnimationFrameId);
     }
 }
 
@@ -452,26 +459,14 @@ function validateDroneData(data) {
     return true;
 }
 
-// const stubFunctions = [
-//     'saveData', 'moveLeft',
-//     'moveForward', 'moveBackward', 'moveRight',
-//     'decreaseAltitude', 'increaseAltitude',
-//     'showFlights', 'showSettings'
-// ];
-//
-// stubFunctions.forEach(funcName => {
-//     window[funcName] = (...args) => {
-//         console.log(`Функция ${funcName} вызвана с аргументами:`, args);
-//         openModal('свага тут?');
-//     };
-// });
-
-
 // переключение темы
 function toggleTheme() {
     document.body.classList.toggle('dark-theme');
     const isDark = document.body.classList.contains('dark-theme');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+    updateGraphTheme();
+    updateMainGraphTheme();
 }
 
 function initTheme() {
@@ -481,7 +476,6 @@ function initTheme() {
 
 initTheme();
 
-// поиск дрона в searchbar
 function filterDrones() {
     const searchValue = document.getElementById('searchInput').value.toLowerCase();
     const droneItems = document.querySelectorAll('.drone-list .drone-item');
@@ -679,81 +673,190 @@ let altitudeData = {
     line: { color: '#28a745', width: 2 }
 };
 let isMaxAltitudeReached = false;
+let targetAltitude = 50;
+let currentAmplitude = 0;
 
+// Инициализация графика высоты
 function initAltitudeGraph() {
+    const isDark = document.body.classList.contains('dark-theme');
+
     const layout = {
         title: 'Высота полета',
         xaxis: {
             title: 'Время (сек)',
-            range: [0, 300],
+            range: [0, 500],
             showgrid: true,
-            gridcolor: '#555',
-            zerolinecolor: '#555'
+            gridcolor: isDark ? '#555' : '#ddd',
+            zerolinecolor: isDark ? '#555' : '#ddd',
+            color: isDark ? '#fff' : '#000'
         },
         yaxis: {
             title: 'Метры',
             range: [0, 100],
             showgrid: true,
-            gridcolor: '#555',
-            zerolinecolor: '#555'
+            gridcolor: isDark ? '#555' : '#ddd',
+            zerolinecolor: isDark ? '#555' : '#ddd',
+            color: isDark ? '#fff' : '#000'
         },
-        plot_bgcolor: 'rgba(0,0,0,0)',
-        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'transparent',
+        paper_bgcolor: 'transparent',
         font: {
-            color: '#fff',
+            color: isDark ? '#fff' : '#000',
             family: 'Arial, sans-serif'
         },
         margin: { t: 40, b: 60, l: 60, r: 30 }
     };
 
-    Plotly.newPlot('altitude-graph', [{
-        x: [],
-        y: [],
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Высота',
-        line: {
-            color: '#28a745',
-            width: 2
-        }
-    }], layout);
+    if (!document.getElementById('altitude-graph').data) {
+        Plotly.newPlot('altitude-graph', [{
+            x: [],
+            y: [],
+            type: 'scatter',
+            mode: 'lines',
+            name: 'Высота',
+            line: { color: '#28a745', width: 2 }
+        }], layout);
+    }
+}
+
+function updateGraphTheme() {
+    const isDark = document.body.classList.contains('dark-theme');
+
+    Plotly.relayout('altitude-graph', {
+        'xaxis.gridcolor': isDark ? '#555' : '#ddd',
+        'yaxis.gridcolor': isDark ? '#555' : '#ddd',
+        'font.color': isDark ? '#fff' : '#000'
+    });
+}
+
+function updateMainGraphTheme() {
+    const isDark = document.body.classList.contains('dark-theme');
+    const gridColor = isDark ? '#555' : '#ddd';
+
+    Plotly.relayout('main-graph', {
+        'shapes[0].line.color': gridColor,
+        'shapes[1].line.color': gridColor,
+        'xaxis.gridcolor': gridColor,
+        'yaxis.gridcolor': gridColor,
+        'font.color': isDark ? '#fff' : '#000'
+    });
+}
+
+let lastPositionUpdate = 0;
+const POSITION_FPS = 30;
+
+function updateDronePosition(timestamp) {
+    if (!isFlying) return;
+
+    if (timestamp - lastPositionUpdate < 1000 / POSITION_FPS) {
+        requestAnimationFrame(updateDronePosition);
+        return;
+    }
+    lastPositionUpdate = timestamp;
+
+    x += speedX * 0.1;
+    y += speedY * 0.1;
+    x = Math.max(-10, Math.min(10, x));
+    y = Math.max(-10, Math.min(10, y));
+
+    const newPoint = {x, y};
+    path.push(newPoint);
+
+    Plotly.extendTraces('main-graph', {
+        x: [[newPoint.x]],
+        y: [[newPoint.y]]
+    }, [0]);
+
+    if (path.length % 15 === 0) {
+        Plotly.relayout('main-graph', {
+            'xaxis.range[0]': -10,
+            'xaxis.range[1]': 10,
+            'yaxis.range[0]': -10,
+            'yaxis.range[1]': 10
+        });
+    }
+
+    requestAnimationFrame(updateDronePosition);
+}
+
+function smoothRandom() {
+    targetAltitude = 50 + (Math.random() * 3 - 1.5);
+    currentAmplitude = currentAmplitude * 0.9 + (targetAltitude - 50) * 0.1;
+    return 50 + currentAmplitude;
 }
 
 // Функция для обновления высоты
 function updateAltitude() {
     if (!isFlying) return;
 
-    time += 1;
+    time += 0.1;
 
     if (!isMaxAltitudeReached) {
-        altitude += 1;
+        altitude = Math.min(50, altitude + 0.5);
         if (altitude >= 50) isMaxAltitudeReached = true;
     } else {
-        // Колебания ±1.5 метра вокруг 50
-        altitude = 50 + Math.sin(time * 0.5) * 1.5;
+        altitude = smoothRandom();
     }
 
     Plotly.extendTraces('altitude-graph', {
-        x: [[time]],
+        x: [[time.toFixed(1)]],
         y: [[altitude]]
     }, [0]);
 
-    if (time > 300) {
+    if (time % 10 === 0 && time > 500) {
         Plotly.relayout('altitude-graph', {
-            'xaxis.range[0]': time - 300,
+            'xaxis.range[0]': time - 500,
             'xaxis.range[1]': time
         });
     }
 
-    const yMax = Math.min(100, Math.max(100, altitude + 10));
-    Plotly.relayout('altitude-graph', {
-        'yaxis.range[1]': yMax
+    animationFrameId = requestAnimationFrame(updateAltitude);
+}
+
+function initMainGraph() {
+    const isDark = document.body.classList.contains('dark-theme');
+    const gridColor = isDark ? '#555' : '#ddd';
+
+    Plotly.newPlot('main-graph', [{
+        x: [0],
+        y: [0],
+        type: 'scatter',
+        mode: 'lines+markers',
+        line: { color: '#007bff', width: 2 },
+        marker: { color: '#007bff', size: 10 }
+    }], {
+        title: 'График местоположения',
+        xaxis: {
+            title: 'Ось X (м)',
+            range: [-10, 10],
+            gridcolor: gridColor,
+            zerolinecolor: gridColor
+        },
+        yaxis: {
+            title: 'Ось Y (м)',
+            range: [-10, 10],
+            gridcolor: gridColor,
+            zerolinecolor: gridColor
+        },
+        plot_bgcolor: 'transparent',
+        paper_bgcolor: 'transparent',
+        font: {
+            color: isDark ? '#fff' : '#000',
+            family: 'Arial, sans-serif'
+        }
     });
 }
 
+
 document.addEventListener('DOMContentLoaded', () => {
     initAltitudeGraph();
-    setInterval(updateAltitude, 1000);
+    initMainGraph();
+
+    window.toggleTheme = function() {
+        document.body.classList.toggle('dark-theme');
+        localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
+        updateGraphTheme();
+    };
 });
 
 setInterval(updateAltitude, 1000);
@@ -768,7 +871,7 @@ function updateAltitudeGraph(time, altitude) {
         altitudeData.y.shift();
     }
 
-    const yRange = [40, Math.max(40, altitude + 10)]; // Минимум 40, максимум высота + 10
+    const yRange = [40, Math.max(40, altitude + 10)];
 
     Plotly.react('altitude-graph', [{
         x: altitudeData.x,
@@ -783,7 +886,7 @@ function updateAltitudeGraph(time, altitude) {
     }], {
         title: 'Высота полета',
         xaxis: { title: 'Время (сек)' },
-        yaxis: { title: 'Метры', range: yRange } // Динамический диапазон по оси Y
+        yaxis: { title: 'Метры', range: yRange }
     });
 }
 
@@ -791,7 +894,7 @@ setInterval(() => {
     if (isFlying) {
         updateAltitude();
     }
-}, 1000); // Обновление каждую секунду
+}, 1000);
 
 function startAltitudeUpdates() {
     updateAltitude();
@@ -818,65 +921,6 @@ function moveRight() {
     if (isFlying) speedX = 1;
 }
 
-function updateDronePosition() {
-    if (isFlying) {
-        x += speedX * 0.1;
-        y += speedY * 0.1;
-
-        x = Math.max(-10, Math.min(10, x));
-        y = Math.max(-10, Math.min(10, y));
-
-        path.push({x, y});
-
-        Plotly.react('main-graph', [{
-            x: path.map(p => p.x),
-            y: path.map(p => p.y),
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Местоположение',
-            line: {
-                color: '#007bff',
-                width: 2
-            },
-            marker: {
-                color: '#007bff',
-                size: 10
-            }
-        }], {
-            title: 'График местоположения',
-            xaxis: {title: 'Ось X (м)', range: [-10, 10]},
-            yaxis: {title: 'Ось Y (м)', range: [-10, 10]},
-            shapes: [
-                {
-                    type: 'line',
-                    x0: -10,
-                    y0: 0,
-                    x1: 10,
-                    y1: 0,
-                    line: {
-                        color: document.body.classList.contains('dark-theme') ? '#555' : '#ddd',
-                        width: 2
-                    }
-                },
-                {
-                    type: 'line',
-                    x0: 0,
-                    y0: -10,
-                    x1: 0,
-                    y1: 10,
-                    line: {
-                        color: document.body.classList.contains('dark-theme') ? '#555' : '#ddd',
-                        width: 2
-                    }
-                }
-            ]
-        });
-    }
-
-    requestAnimationFrame(updateDronePosition);
-}
-
-updateDronePosition();
 
 // управление клавишами
 document.addEventListener('keydown', (event) => {
