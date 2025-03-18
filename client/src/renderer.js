@@ -187,7 +187,13 @@ function toggleStartStop() {
             time = 0;
             altitude = 0;
             isMaxAltitudeReached = false;
+            path = [{x: 0, y: 0}];
+            plotlyPositionBatch = { x: [], y: [] };
+            plotlyAltitudeBatch = { x: [], y: [] };
+
+            Plotly.purge('main-graph');
             Plotly.purge('altitude-graph');
+            initMainGraph();
             initAltitudeGraph();
         }
 
@@ -206,6 +212,7 @@ function toggleStartStop() {
             </svg>`;
         startStopButton.style.backgroundColor = '#28a745';
 
+        // Корректная остановка всех анимаций
         cancelAnimationFrame(altitudeAnimationFrameId);
         cancelAnimationFrame(droneAnimationFrameId);
     }
@@ -684,7 +691,7 @@ function initAltitudeGraph() {
         title: 'Высота полета',
         xaxis: {
             title: 'Время (сек)',
-            range: [0, 500],
+            range: [0, 300],
             showgrid: true,
             gridcolor: isDark ? '#555' : '#ddd',
             zerolinecolor: isDark ? '#555' : '#ddd',
@@ -692,7 +699,7 @@ function initAltitudeGraph() {
         },
         yaxis: {
             title: 'Метры',
-            range: [0, 100],
+            range: [0, 70],
             showgrid: true,
             gridcolor: isDark ? '#555' : '#ddd',
             zerolinecolor: isDark ? '#555' : '#ddd',
@@ -707,16 +714,19 @@ function initAltitudeGraph() {
         margin: { t: 40, b: 60, l: 60, r: 30 }
     };
 
-    if (!document.getElementById('altitude-graph').data) {
-        Plotly.newPlot('altitude-graph', [{
-            x: [],
-            y: [],
-            type: 'scatter',
-            mode: 'lines',
-            name: 'Высота',
-            line: { color: '#28a745', width: 2 }
-        }], layout);
-    }
+    Plotly.purge('altitude-graph');
+    Plotly.newPlot('altitude-graph', [{
+        x: [],
+        y: [],
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Высота',
+        line: {
+            color: '#28a745',
+            width: 2,
+            shape: 'spline'
+        }
+    }], layout);
 }
 
 function updateGraphTheme() {
@@ -742,14 +752,21 @@ function updateMainGraphTheme() {
     });
 }
 
-let lastPositionUpdate = 0;
+const MAX_DATA_POINTS = 500;
 const POSITION_FPS = 30;
+const ALTITUDE_FPS = 30;
+const PLOTLY_BATCH_SIZE = 15;
+
+let lastPositionUpdate = 0;
+let lastAltitudeUpdate = 0;
+let plotlyPositionBatch = { x: [], y: [] };
+let plotlyAltitudeBatch = { x: [], y: [] };
 
 function updateDronePosition(timestamp) {
     if (!isFlying) return;
 
     if (timestamp - lastPositionUpdate < 1000 / POSITION_FPS) {
-        requestAnimationFrame(updateDronePosition);
+        droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
         return;
     }
     lastPositionUpdate = timestamp;
@@ -759,35 +776,43 @@ function updateDronePosition(timestamp) {
     x = Math.max(-10, Math.min(10, x));
     y = Math.max(-10, Math.min(10, y));
 
-    const newPoint = {x, y};
-    path.push(newPoint);
+    path.push({ x, y });
 
-    Plotly.extendTraces('main-graph', {
-        x: [[newPoint.x]],
-        y: [[newPoint.y]]
-    }, [0]);
-
-    if (path.length % 15 === 0) {
-        Plotly.relayout('main-graph', {
-            'xaxis.range[0]': -10,
-            'xaxis.range[1]': 10,
-            'yaxis.range[0]': -10,
-            'yaxis.range[1]': 10
-        });
+    if (path.length > MAX_DATA_POINTS) {
+        path.shift();
     }
 
-    requestAnimationFrame(updateDronePosition);
+    Plotly.extendTraces('main-graph', {
+        x: [[x]],
+        y: [[y]]
+    }, [0]);
+
+    Plotly.relayout('main-graph', {
+        'xaxis.range': [Math.min(x - 5, -10), Math.max(x + 5, 10)],
+        'yaxis.range': [Math.min(y - 5, -10), Math.max(y + 5, 10)]
+    });
+
+    droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
 }
+
 
 function smoothRandom() {
     targetAltitude = 50 + (Math.random() * 3 - 1.5);
-    currentAmplitude = currentAmplitude * 0.9 + (targetAltitude - 50) * 0.1;
+    currentAmplitude = Math.max(-2, Math.min(2,
+        currentAmplitude * 0.9 + (targetAltitude - 50) * 0.1
+    ));
     return 50 + currentAmplitude;
 }
 
 // Функция для обновления высоты
-function updateAltitude() {
+function updateAltitude(timestamp) {
     if (!isFlying) return;
+
+    if (timestamp - lastAltitudeUpdate < 1000 / ALTITUDE_FPS) {
+        altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+        return;
+    }
+    lastAltitudeUpdate = timestamp;
 
     time += 0.1;
 
@@ -798,19 +823,27 @@ function updateAltitude() {
         altitude = smoothRandom();
     }
 
-    Plotly.extendTraces('altitude-graph', {
-        x: [[time.toFixed(1)]],
-        y: [[altitude]]
-    }, [0]);
+    plotlyAltitudeBatch.x.push(time.toFixed(1));
+    plotlyAltitudeBatch.y.push(altitude);
 
-    if (time % 10 === 0 && time > 500) {
+    if (plotlyAltitudeBatch.x.length >= PLOTLY_BATCH_SIZE) {
+        Plotly.extendTraces('altitude-graph', {
+            x: [plotlyAltitudeBatch.x],
+            y: [plotlyAltitudeBatch.y]
+        }, [0]);
+
+        plotlyAltitudeBatch.x = [];
+        plotlyAltitudeBatch.y = [];
+    }
+
+    if (time % 30 === 0) {
         Plotly.relayout('altitude-graph', {
-            'xaxis.range[0]': time - 500,
-            'xaxis.range[1]': time
+            'xaxis.range[0]': Math.max(0, time - 60),
+            'xaxis.range[1]': time + 5
         });
     }
 
-    animationFrameId = requestAnimationFrame(updateAltitude);
+    altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
 }
 
 function initMainGraph() {
