@@ -6,6 +6,45 @@ let speedY = 0;
 let isFlying = false;
 let path = [{x: 0, y: 0}];
 
+// Константы для расчетов
+const P0 = 101325.0;  // Давление на уровне моря (Па)
+const T0 = 288.15;    // Температура на уровне моря (К)
+const L = -0.0065;    // Температурный градиент (К/м)
+const g = 9.80665;    // Ускорение свободного падения (м/с²)
+const M = 0.0289644;  // Молярная масса воздуха (кг/моль)
+const R = 8.3144598;  // Универсальная газовая постоянная (Дж/(моль·К))
+
+let altitude = 0;
+let time = 0;
+let altitudeData = {
+    x: [],
+    y: [],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#28a745', width: 2 }
+};
+
+// Глобальные переменные для данных графиков
+let temperatureData = {
+    x: [],
+    y: [],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#ff7f0e', width: 2 }
+};
+
+let pressureData = {
+    x: [],
+    y: [],
+    type: 'scatter',
+    mode: 'lines',
+    line: { color: '#d62728', width: 2 }
+};
+
+let isMaxAltitudeReached = false;
+let targetAltitude = 50;
+let currentAmplitude = 0;
+
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
         console.error('Некорректные данные дрона:', drone);
@@ -190,11 +229,6 @@ function toggleStartStop() {
             path = [{x: 0, y: 0}];
             plotlyPositionBatch = { x: [], y: [] };
             plotlyAltitudeBatch = { x: [], y: [] };
-
-            Plotly.purge('main-graph');
-            Plotly.purge('altitude-graph');
-            initMainGraph();
-            initAltitudeGraph();
         }
 
         startStopButton.innerHTML = `
@@ -212,7 +246,6 @@ function toggleStartStop() {
             </svg>`;
         startStopButton.style.backgroundColor = '#28a745';
 
-        // Корректная остановка всех анимаций
         cancelAnimationFrame(altitudeAnimationFrameId);
         cancelAnimationFrame(droneAnimationFrameId);
     }
@@ -670,19 +703,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-let altitude = 0;
-let time = 0;
-let altitudeData = {
-    x: [],
-    y: [],
-    type: 'scatter',
-    mode: 'lines',
-    line: { color: '#28a745', width: 2 }
-};
-let isMaxAltitudeReached = false;
-let targetAltitude = 50;
-let currentAmplitude = 0;
-
 // Инициализация графика высоты
 function initAltitudeGraph() {
     const isDark = document.body.classList.contains('dark-theme');
@@ -727,6 +747,77 @@ function initAltitudeGraph() {
             shape: 'spline'
         }
     }], layout);
+}
+
+// Инициализация графиков температуры и давления
+function initTemperatureGraph() {
+    const isDark = document.body.classList.contains('dark-theme');
+    const gridColor = isDark ? '#555' : '#ddd';
+    const textColor = isDark ? '#fff' : '#000';
+
+    const layout = {
+        title: 'Температура',
+        xaxis: {
+            title: 'Время (сек)',
+            range: [0, 300],
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: gridColor,
+            color: textColor
+        },
+        yaxis: {
+            title: '°C',
+            range: [10, 30],
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: gridColor,
+            color: textColor
+        },
+        plot_bgcolor: 'transparent',
+        paper_bgcolor: 'transparent',
+        font: {
+            color: textColor,
+            family: 'Arial, sans-serif'
+        },
+        margin: { t: 40, b: 60, l: 60, r: 30 }
+    };
+
+    Plotly.newPlot('temperature-graph', [temperatureData], layout);
+}
+
+function initPressureGraph() {
+    const isDark = document.body.classList.contains('dark-theme');
+    const gridColor = isDark ? '#555' : '#ddd';
+    const textColor = isDark ? '#fff' : '#000';
+
+    const layout = {
+        title: 'Атмосферное давление',
+        xaxis: {
+            title: 'Время (сек)',
+            range: [0, 300],
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: gridColor,
+            color: textColor
+        },
+        yaxis: {
+            title: 'гПа',
+            range: [900, 1100],
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: gridColor,
+            color: textColor
+        },
+        plot_bgcolor: 'transparent',
+        paper_bgcolor: 'transparent',
+        font: {
+            color: textColor,
+            family: 'Arial, sans-serif'
+        },
+        margin: { t: 40, b: 60, l: 60, r: 30 }
+    };
+
+    Plotly.newPlot('pressure-graph', [pressureData], layout);
 }
 
 function updateGraphTheme() {
@@ -823,27 +914,33 @@ function updateAltitude(timestamp) {
         altitude = smoothRandom();
     }
 
-    plotlyAltitudeBatch.x.push(time.toFixed(1));
-    plotlyAltitudeBatch.y.push(altitude);
+    // Расчет температуры и давления с учетом колебаний
+    const temperature = (T0 + L * altitude) - 273.15 + (Math.random() - 0.5) * 0.02; // ±0.01 °C
+    const pressure = (P0 * Math.pow(1 - (L * altitude) / T0, (g * M) / (R * L))) / 100 + (Math.random() - 0.5) * 0.36; // ±0.18 гПа
 
-    if (plotlyAltitudeBatch.x.length >= PLOTLY_BATCH_SIZE) {
-        Plotly.extendTraces('altitude-graph', {
-            x: [plotlyAltitudeBatch.x],
-            y: [plotlyAltitudeBatch.y]
-        }, [0]);
-
-        plotlyAltitudeBatch.x = [];
-        plotlyAltitudeBatch.y = [];
-    }
+    // Обновление данных
+    updateGraphData('altitude-graph', altitude, altitudeData);
+    updateGraphData('temperature-graph', temperature, temperatureData);
+    updateGraphData('pressure-graph', pressure, pressureData);
 
     if (time % 30 === 0) {
-        Plotly.relayout('altitude-graph', {
-            'xaxis.range[0]': Math.max(0, time - 60),
-            'xaxis.range[1]': time + 5
+        const xRange = [Math.max(0, time - 60), time + 5];
+        ['altitude-graph', 'temperature-graph', 'pressure-graph'].forEach(graphId => {
+            Plotly.relayout(graphId, { 'xaxis.range': xRange });
         });
     }
 
     altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+}
+
+function updateGraphData(graphId, value, data) {
+    data.x.push(time);
+    data.y.push(value);
+
+    Plotly.update(graphId, {
+        x: [data.x],
+        y: [data.y]
+    }, {}, [0]);
 }
 
 function initMainGraph() {
@@ -880,9 +977,10 @@ function initMainGraph() {
     });
 }
 
-
 document.addEventListener('DOMContentLoaded', () => {
     initAltitudeGraph();
+    initTemperatureGraph();
+    initPressureGraph();
     initMainGraph();
 
     window.toggleTheme = function() {
