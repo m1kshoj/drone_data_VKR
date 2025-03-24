@@ -248,6 +248,26 @@ h2 {
     width: 100%;
 }
 
+.js-plotly-plot .xaxis line,
+.js-plotly-plot .yaxis line {
+    stroke: #555 !important;
+}
+
+body:not(.dark-theme) .js-plotly-plot .xaxis line,
+body:not(.dark-theme) .js-plotly-plot .yaxis line {
+    stroke: #d0d0d0 !important;
+}
+
+.js-plotly-plot .gridlayer path {
+    stroke: #c6c6c6 !important;
+    stroke-opacity: 0.3 !important;
+}
+
+body:not(.dark-theme) .js-plotly-plot .gridlayer path {
+    stroke: #c6c6c6 !important;
+    stroke-opacity: 0.7 !important;
+}
+
 .main-graph {
     height: 60vh;
 }
