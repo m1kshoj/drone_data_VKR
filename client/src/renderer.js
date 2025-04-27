@@ -14,6 +14,14 @@ const g = 9.80665;    // Ускорение свободного падения 
 const M = 0.0289644;  // Молярная масса воздуха (кг/моль)
 const R = 8.3144598;  // Универсальная газовая постоянная (Дж/(моль·К))
 
+let altitudeChangeRate = 1; // Скорость изменения высоты (метры в секунду)
+const ALTITUDE_RATES = [
+    { threshold: 100, rate: 1 },   // До 100 метров: ±1 метр
+    { threshold: 500, rate: 5 },   // От 100 до 500 метров: ±5 метров
+    { threshold: 1000, rate: 10 }, // От 500 до 1000 метров: ±10 метров
+    { threshold: Infinity, rate: 20 } // Выше 1000 метров: ±20 метров
+];
+
 let altitude = 0;
 let time = 0;
 let altitudeData = {
@@ -21,7 +29,7 @@ let altitudeData = {
     y: [],
     type: 'scatter',
     mode: 'lines',
-    line: { color: '#28a745', width: 2 }
+    line: {color: '#28a745', width: 2}
 };
 
 // Глобальные переменные для данных графиков
@@ -30,7 +38,7 @@ let temperatureData = {
     y: [],
     type: 'scatter',
     mode: 'lines',
-    line: { color: '#ff7f0e', width: 2 }
+    line: {color: '#ff7f0e', width: 2}
 };
 
 let pressureData = {
@@ -38,11 +46,11 @@ let pressureData = {
     y: [],
     type: 'scatter',
     mode: 'lines',
-    line: { color: '#d62728', width: 2 }
+    line: {color: '#d62728', width: 2}
 };
 
 let isMaxAltitudeReached = false;
-let targetAltitude = 50;
+let targetAltitude = 1000;
 let currentAmplitude = 0;
 
 const GRAPH_WINDOW_SIZE = 300;
@@ -250,8 +258,8 @@ function toggleStartStop() {
             altitude = 0;
             isMaxAltitudeReached = false;
             path = [{x: 0, y: 0}];
-            plotlyPositionBatch = { x: [], y: [] };
-            plotlyAltitudeBatch = { x: [], y: [] };
+            plotlyPositionBatch = {x: [], y: []};
+            plotlyAltitudeBatch = {x: [], y: []};
         }
 
         startStopButton.innerHTML = `
@@ -755,7 +763,7 @@ function initAltitudeGraph() {
             color: isDark ? '#fff' : '#000',
             family: 'Arial, sans-serif'
         },
-        margin: { t: 40, b: 60, l: 60, r: 30 },
+        margin: {t: 40, b: 60, l: 60, r: 30},
         dragmode: 'zoom'
     };
 
@@ -789,7 +797,7 @@ function initTemperatureGraph() {
             color: isDark ? '#fff' : '#000',
             family: 'Arial, sans-serif'
         },
-        margin: { t: 40, b: 60, l: 60, r: 30 },
+        margin: {t: 40, b: 60, l: 60, r: 30},
         dragmode: 'zoom'
     };
 
@@ -823,7 +831,7 @@ function initPressureGraph() {
             color: isDark ? '#fff' : '#000',
             family: 'Arial, sans-serif'
         },
-        margin: { t: 40, b: 60, l: 60, r: 30 },
+        margin: {t: 40, b: 60, l: 60, r: 30},
         dragmode: 'zoom'
     };
 
@@ -860,8 +868,8 @@ const PLOTLY_BATCH_SIZE = 15;
 
 let lastPositionUpdate = 0;
 let lastAltitudeUpdate = 0;
-let plotlyPositionBatch = { x: [], y: [] };
-let plotlyAltitudeBatch = { x: [], y: [] };
+let plotlyPositionBatch = {x: [], y: []};
+let plotlyAltitudeBatch = {x: [], y: []};
 
 function updateDronePosition(timestamp) {
     if (!isFlying) return;
@@ -877,7 +885,7 @@ function updateDronePosition(timestamp) {
     x = Math.max(-10, Math.min(10, x));
     y = Math.max(-10, Math.min(10, y));
 
-    path.push({ x, y });
+    path.push({x, y});
 
     if (path.length > MAX_DATA_POINTS) {
         path.shift();
@@ -906,27 +914,59 @@ function smoothRandom() {
 }
 
 // обновление высоты
+// Функция для расчета скорости изменения высоты
+function calculateAltitudeChangeRate(currentAltitude) {
+    for (const { threshold, rate } of ALTITUDE_RATES) {
+        if (currentAltitude < threshold) {
+            return rate;
+        }
+    }
+    return 1; // По умолчанию ±1 метр
+}
+
+// Увеличение высоты
+function increaseAltitude() {
+    if (!isFlying) return;
+    altitudeChangeRate = calculateAltitudeChangeRate(altitude);
+    targetAltitude = Math.min(altitude + altitudeChangeRate, 10000); // Ограничение максимальной высоты
+}
+
+// Уменьшение высоты
+function decreaseAltitude() {
+    if (!isFlying) return;
+    altitudeChangeRate = calculateAltitudeChangeRate(altitude);
+    targetAltitude = Math.max(altitude - altitudeChangeRate, 0); // Ограничение минимальной высоты
+}
+
+// Обновление логики изменения высоты
 function updateAltitude(timestamp) {
     if (!isFlying) return;
-
     if (timestamp - lastAltitudeUpdate < UPDATE_INTERVAL) {
         altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
         return;
     }
     lastAltitudeUpdate = timestamp;
 
+    // Обновление времени
     time += 0.1;
 
-    if (!isMaxAltitudeReached) {
-        altitude = Math.min(50, altitude + 0.5);
-        if (altitude >= 50) isMaxAltitudeReached = true;
-    } else {
-        altitude = smoothRandom();
-    }
+    // Изменение высоты в зависимости от targetAltitude
+    const delta = (targetAltitude - altitude) * 0.1; // Плавное приближение к целевой высоте
+    altitude += delta;
 
-    const temperature = (T0 + L * altitude) - 273.15 + (Math.random() - 0.5) * 0.02;
-    const pressure = (P0 * Math.pow(1 - (L * altitude) / T0, (g * M) / (R * L)) / 100 + (Math.random() - 0.5) * 0.36);
+    // Добавление случайных флуктуаций к высоте
+    altitude += (Math.random() - 0.5) * 0.2; // Небольшие случайные колебания
 
+    // Ограничение высоты в допустимых пределах
+    altitude = Math.max(0, Math.min(altitude, 10000));
+
+    // Расчет температуры с учетом случайных флуктуаций
+    const temperature = (T0 + L * altitude) - 273.15 + (Math.random() - 0.5) * 0.1;
+
+    // Расчет давления с учетом случайных флуктуаций
+    const pressure = (P0 * Math.pow(1 - (L * altitude) / T0, (g * M) / (R * L)) / 100 + (Math.random() - 0.5) * 0.2);
+
+    // Обновление данных графиков
     altitudeData.x.push(time);
     altitudeData.y.push(altitude);
     temperatureData.x.push(time);
@@ -934,31 +974,21 @@ function updateAltitude(timestamp) {
     pressureData.x.push(time);
     pressureData.y.push(pressure);
 
-    Plotly.extendTraces('altitude-graph', {
-        x: [[time]],
-        y: [[altitude]]
-    }, [0]);
+    // Обновление графиков
+    Plotly.extendTraces('altitude-graph', { x: [[time]], y: [[altitude]] }, [0]);
+    Plotly.extendTraces('temperature-graph', { x: [[time]], y: [[temperature]] }, [0]);
+    Plotly.extendTraces('pressure-graph', { x: [[time]], y: [[pressure]] }, [0]);
 
-    Plotly.extendTraces('temperature-graph', {
-        x: [[time]],
-        y: [[temperature]]
-    }, [0]);
-
-    Plotly.extendTraces('pressure-graph', {
-        x: [[time]],
-        y: [[pressure]]
-    }, [0]);
-
+    // Автоматическое масштабирование оси X графиков
     const isUserInteracting = document.querySelector('.modebar-btn--hover');
     if (!isUserInteracting && time > GRAPH_WINDOW_SIZE) {
         const xRange = [time - GRAPH_WINDOW_SIZE, time];
         ['altitude-graph', 'temperature-graph', 'pressure-graph'].forEach(graphId => {
-            Plotly.relayout(graphId, {
-                'xaxis.range': xRange
-            });
+            Plotly.relayout(graphId, { 'xaxis.range': xRange });
         });
     }
 
+    // Запуск следующего кадра анимации
     altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
 }
 
@@ -988,7 +1018,7 @@ function initMainGraph() {
             color: isDark ? '#fff' : '#000',
             family: 'Arial, sans-serif'
         },
-        margin: { t: 40, b: 60, l: 60, r: 30 }
+        margin: {t: 40, b: 60, l: 60, r: 30}
     };
 
     Plotly.newPlot('main-graph', [{
@@ -1014,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPressureGraph();
     initMainGraph();
 
-    window.toggleTheme = function() {
+    window.toggleTheme = function () {
         document.body.classList.toggle('dark-theme');
         localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
         updateGraphTheme();
@@ -1047,8 +1077,8 @@ function updateAltitudeGraph(time, altitude) {
         }
     }], {
         title: 'Высота полета',
-        xaxis: { title: 'Время (сек)' },
-        yaxis: { title: 'Метры', range: yRange }
+        xaxis: {title: 'Время (сек)'},
+        yaxis: {title: 'Метры', range: yRange}
     });
 }
 
@@ -1100,10 +1130,16 @@ document.addEventListener('keydown', (event) => {
             case 'KeyD':
                 speedX = 1;
                 break;
+            case 'KeyE':
+                increaseAltitude();
+                break;
+            case 'KeyQ':
+                decreaseAltitude();
+                break;
         }
     }
 
-    if (event.code === 'KeyF') {
+    if (event.code === 'Space') {
         toggleStartStop();
     }
 });
