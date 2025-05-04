@@ -566,6 +566,15 @@ body:not(.dark-theme) .graph {
     font-weight: 600;
 }
 
+body.dark-theme .modal-title {
+    color: #fff !important;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+body.dark-theme .modal-message {
+    color: #e0e0e0 !important;
+}
+
 .drone-name-text {
     color: #4299e1;
     font-weight: 500;
