@@ -53,11 +53,20 @@ let isMaxAltitudeReached = false;
 let targetAltitude = 1000;
 let currentAmplitude = 0;
 
-const BASE_ASCENT_RATE = 2.0; // Базовая скорость набора высоты (м/с)
+const BASE_ASCENT_RATE = 4.0; // Базовая скорость набора высоты (м/с)
 const BASE_DESCENT_RATE = 3.0; // Базовая скорость снижения (м/с)
 const PASSIVE_OSCILLATION = 1.5; // Амплитуда пассивных колебаний (±1.5 метра)
+const MAX_DATA_POINTS = 2000;
+const POSITION_FPS = 30;
+const ALTITUDE_FPS = 30;
+const PLOTLY_BATCH_SIZE = 15;
 
+let lastPositionUpdate = 0;
+let lastAltitudeUpdate = 0;
+let plotlyPositionBatch = {x: [], y: []};
+let plotlyAltitudeBatch = {x: [], y: []};
 let isAltitudeChanging = false;
+let passiveOscillationPhase = 0; // Фаза колебаний для плавности
 
 const GRAPH_WINDOW_SIZE = 300;
 const UPDATE_INTERVAL = 16;
@@ -875,16 +884,6 @@ function updateMainGraphTheme() {
     });
 }
 
-const MAX_DATA_POINTS = 2000;
-const POSITION_FPS = 30;
-const ALTITUDE_FPS = 30;
-const PLOTLY_BATCH_SIZE = 15;
-
-let lastPositionUpdate = 0;
-let lastAltitudeUpdate = 0;
-let plotlyPositionBatch = {x: [], y: []};
-let plotlyAltitudeBatch = {x: [], y: []};
-
 function updateDronePosition(timestamp) {
     if (!isFlying) return;
 
@@ -918,7 +917,6 @@ function updateDronePosition(timestamp) {
     droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
 }
 
-
 function smoothRandom() {
     targetAltitude = 50 + (Math.random() * 3 - 1.5);
     currentAmplitude = Math.max(-2, Math.min(2,
@@ -928,28 +926,17 @@ function smoothRandom() {
 }
 
 // обновление высоты
-function calculateAltitudeChangeRate(currentAltitude) {
-    for (const {threshold, rate} of ALTITUDE_RATES) {
-        if (currentAltitude < threshold) {
-            return rate;
-        }
-    }
-    return 1; // По умолчанию ±1 метр
-}
-
 // Увеличение высоты
 function increaseAltitude() {
-    if (!isFlying) return;
-    // Увеличиваем целевую высоту с шагом 10% от текущей (но не менее 10м)
-    targetAltitude += Math.max(10, altitude * 0.1);
-    targetAltitude = Math.min(targetAltitude, 10000);
+    if (!isFlying || isAltitudeChanging) return;
+    isAltitudeChanging = true;
+    targetAltitude = Math.min(altitude + 10, 10000);
 }
 
 function decreaseAltitude() {
-    if (!isFlying) return;
-    // Уменьшаем целевую высоту с шагом 10% от текущей (но не менее 10м)
-    targetAltitude -= Math.max(10, altitude * 0.1);
-    targetAltitude = Math.max(targetAltitude, 0);
+    if (!isFlying || isAltitudeChanging) return;
+    isAltitudeChanging = true;
+    targetAltitude = Math.max(altitude - 10, 0);
 }
 
 // Изменения высоты
@@ -963,37 +950,34 @@ function updateAltitude(timestamp) {
     lastAltitudeUpdate = timestamp;
 
     time += 0.1;
+    passiveOscillationPhase += 0.05;
 
-    // Динамическое время достижения высоты (чем выше - тем дольше)
+    // Пассивные колебания высоты
+    const baseOscillation = Math.sin(passiveOscillationPhase) * PASSIVE_OSCILLATION;
+
+    // Активное изменение высоты
     const altitudeDifference = targetAltitude - altitude;
     const distanceFactor = Math.min(1, Math.abs(altitudeDifference) / 1000);
 
-    // Расчет скорости с учетом расстояния (экспоненциальное замедление)
     const ascentRate = BASE_ASCENT_RATE * (1 + distanceFactor * 3);
     const descentRate = BASE_DESCENT_RATE * (1 + distanceFactor * 2);
 
+    let altitudeChange = 0;
     if (Math.abs(altitudeDifference) > 0.1) {
         const rate = altitudeDifference > 0 ? ascentRate : descentRate;
-        altitude += Math.sign(altitudeDifference) * rate * 0.1;
-        isAltitudeChanging = true;
+        altitudeChange = Math.sign(altitudeDifference) * rate * 0.1;
     } else {
-        if (isAltitudeChanging) {
-            targetAltitude = altitude;
-            isAltitudeChanging = false;
-        }
-        altitude += (Math.random() - 0.5) * 0.2;
-        altitude = Math.max(targetAltitude - PASSIVE_OSCILLATION,
-            Math.min(targetAltitude + PASSIVE_OSCILLATION, altitude));
+        isAltitudeChanging = false;
     }
 
-    // Ограничение высоты
-    altitude = Math.max(0, Math.min(altitude, 10000));
+    // Обновление высоты с колебаниями
+    altitude = Math.max(0, Math.min(altitude + altitudeChange + baseOscillation * 0.1, 10000));
 
-    // Расчет температуры и давления
+    // Расчет параметров
     const temperature = (T0 + L * altitude) - 273.15 + (Math.random() - 0.5) * 0.1;
     const pressure = (P0 * Math.pow(1 - (L * altitude) / T0, (g * M) / (R * L)) / 100 + (Math.random() - 0.5) * 0.2);
 
-    // Обновление графиков
+    // Добавление новых данных (без удаления старых)
     altitudeData.x.push(time);
     altitudeData.y.push(altitude);
     temperatureData.x.push(time);
@@ -1001,15 +985,38 @@ function updateAltitude(timestamp) {
     pressureData.x.push(time);
     pressureData.y.push(pressure);
 
-    Plotly.extendTraces('altitude-graph', {x: [[time]], y: [[altitude]]}, [0]);
-    Plotly.extendTraces('temperature-graph', {x: [[time]], y: [[temperature]]}, [0]);
-    Plotly.extendTraces('pressure-graph', {x: [[time]], y: [[pressure]]}, [0]);
+    // Обновление графиков с фиксированным окном 300 секунд
+    const xRange = [Math.max(0, time - GRAPH_WINDOW_SIZE), Math.max(time, GRAPH_WINDOW_SIZE)];
 
+    Plotly.extendTraces('altitude-graph', {
+        x: [[time]],
+        y: [[altitude]]
+    }, [0]);
+
+    Plotly.extendTraces('temperature-graph', {
+        x: [[time]],
+        y: [[temperature]]
+    }, [0]);
+
+    Plotly.extendTraces('pressure-graph', {
+        x: [[time]],
+        y: [[pressure]]
+    }, [0]);
+
+    // Обновление диапазонов осей
     if (time > GRAPH_WINDOW_SIZE) {
-        const newXRange = [time - GRAPH_WINDOW_SIZE, time];
-        Plotly.relayout('altitude-graph', {'xaxis.range': newXRange});
-        Plotly.relayout('temperature-graph', {'xaxis.range': newXRange});
-        Plotly.relayout('pressure-graph', {'xaxis.range': newXRange});
+        Plotly.relayout('altitude-graph', {
+            'xaxis.range': xRange,
+            'yaxis.autorange': true
+        });
+        Plotly.relayout('temperature-graph', {
+            'xaxis.range': xRange,
+            'yaxis.autorange': true
+        });
+        Plotly.relayout('pressure-graph', {
+            'xaxis.range': xRange,
+            'yaxis.autorange': true
+        });
     }
 
     altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
@@ -1076,35 +1083,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 setInterval(updateAltitude, 1000);
 
-// Функция для обновления графика
-function updateAltitudeGraph(time, altitude) {
-    altitudeData.x.push(time);
-    altitudeData.y.push(altitude);
-
-    if (altitudeData.x.length > 100) {
-        altitudeData.x.shift();
-        altitudeData.y.shift();
-    }
-
-    const yRange = [40, Math.max(40, altitude + 10)];
-
-    Plotly.react('altitude-graph', [{
-        x: altitudeData.x,
-        y: altitudeData.y,
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Высота',
-        line: {
-            color: '#28a745',
-            width: 2
-        }
-    }], {
-        title: 'Высота полета',
-        xaxis: {title: 'Время (сек)'},
-        yaxis: {title: 'Метры', range: yRange}
-    });
-}
-
 setInterval(() => {
     if (isFlying) {
         updateAltitude();
@@ -1170,111 +1148,6 @@ function clearGraphs(confirmed = false) {
         Plotly.Plots.resize('temperature-graph');
         Plotly.Plots.resize('pressure-graph');
     }, 50);
-}
-
-// Модифицированные функции инициализации графиков
-function initMainGraph(reset = false) {
-    const isDark = document.body.classList.contains('dark-theme');
-    const layout = {
-        title: 'График местоположения',
-        xaxis: {
-            title: 'Ось X (м)',
-            range: [-10, 10],
-            showgrid: true,
-            gridcolor: isDark ? '#555' : '#ddd',
-            zerolinecolor: isDark ? '#555' : '#ddd',
-            color: isDark ? '#fff' : '#000',
-            zerolinewidth: 2,
-            gridwidth: 1
-        },
-        yaxis: {
-            title: 'Ось Y (м)',
-            range: [-10, 10],
-            showgrid: true,
-            gridcolor: isDark ? '#555' : '#ddd',
-            zerolinecolor: isDark ? '#555' : '#ddd',
-            color: isDark ? '#fff' : '#000',
-            zerolinewidth: 2,
-            gridwidth: 1
-        },
-        shapes: [
-            {
-                type: 'line',
-                x0: -10,
-                y0: 0,
-                x1: 10,
-                y1: 0,
-                line: {color: isDark ? '#555' : '#ddd', width: 2},
-                layer: 'below'
-            },
-            {
-                type: 'line',
-                x0: 0,
-                y0: -10,
-                x1: 0,
-                y1: 10,
-                line: {color: isDark ? '#555' : '#ddd', width: 2},
-                layer: 'below'
-            }
-        ],
-        plot_bgcolor: 'transparent',
-        paper_bgcolor: 'transparent',
-        font: {color: isDark ? '#fff' : '#000'},
-        hovermode: 'closest'
-    };
-
-    const data = [{
-        x: [0],
-        y: [0],
-        type: 'scattergl',
-        mode: 'markers+lines',
-        marker: {color: '#007bff', size: 10},
-        line: {color: '#007bff', width: 2}
-    }];
-
-    if (reset) {
-        Plotly.react('main-graph', data, layout, plotlyConfig);
-    } else {
-        Plotly.newPlot('main-graph', data, layout, plotlyConfig);
-    }
-}
-
-function initAltitudeGraph() {
-    const isDark = document.body.classList.contains('dark-theme');
-    const STATIC_TIME_RANGE_SECONDS = 300;
-
-    const layout = {
-        title: 'Высота полета',
-        xaxis: {
-            title: 'Время (сек)',
-            range: [0, GRAPH_WINDOW_SIZE],
-            showgrid: true,
-            gridcolor: isDark ? '#555' : '#ddd',
-            zerolinecolor: isDark ? '#555' : '#ddd',
-            color: isDark ? '#fff' : '#000',
-        },
-        yaxis: {
-            title: 'Метры',
-            autorange: true,
-            rangemode: 'nonnegative',
-            fixedrange: false,
-            showgrid: true,
-            gridcolor: isDark ? '#555' : '#ddd',
-            zerolinecolor: isDark ? '#555' : '#ddd',
-            color: isDark ? '#fff' : '#000',
-        },
-        plot_bgcolor: 'transparent',
-        paper_bgcolor: 'transparent',
-        font: {
-            color: isDark ? '#fff' : '#000',
-            family: 'Arial, sans-serif'
-        },
-        margin: {t: 40, b: 60, l: 60, r: 30},
-        dragmode: 'zoom'
-    };
-    if (!altitudeData.x) altitudeData.x = [];
-    if (!altitudeData.y) altitudeData.y = [];
-    Plotly.newPlot('altitude-graph', [altitudeData], layout, plotlyConfig);
 }
 
 // Добавляем функции подтверждения
