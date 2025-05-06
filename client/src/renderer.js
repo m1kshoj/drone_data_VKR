@@ -1146,7 +1146,6 @@ function toggleLandTakeoff() {
     }
 }
 
-
 // Очистка графиков
 function clearGraphs(confirmed = false) {
     if (!confirmed) {
