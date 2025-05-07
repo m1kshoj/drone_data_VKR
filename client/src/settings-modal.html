@@ -1,0 +1,72 @@
+<div class="modal-content settings-modal">
+    <h3 class="modal-title">Настройки системы</h3>
+
+    <form id="settingsForm">
+        <div class="settings-section">
+            <h4 class="section-title">Варианты полёта</h4>
+            <div class="flight-shapes">
+                <button type="button" class="shape-btn" data-shape="circle">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    Круг
+                </button>
+                <button type="button" class="shape-btn" data-shape="square">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="4" width="16" height="16" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    Квадрат
+                </button>
+                <button type="button" class="shape-btn" data-shape="star">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                    Звезда
+                </button>
+                <button type="button" class="shape-btn" data-shape="trapezoid">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 16L10 8L14 8L20 16H4Z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    Трапеция
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <button type="button" class="defaults-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 2V8H8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M2 16C2 20.4183 5.58172 24 10 24C14.4183 24 18 20.4183 18 16C18 11.5817 14.4183 8 10 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M21.5 22V16H15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 8C22 3.58172 18.4183 0 14 0C9.58172 0 6 3.58172 6 8C6 12.4183 9.58172 16 14 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Значения по умолчанию
+            </button>
+        </div>
+
+        <div class="settings-section">
+            <h4 class="section-title">Настройки графиков</h4>
+            <div class="input-group">
+                <input type="number" id="height_on_water" min="0" step="0.1" required placeholder=" ">
+                <label for="initial_height">Высота над уровнем моря (м)</label>
+            </div>
+            <div class="input-group">
+                <input type="number" id="initial_height" min="0" step="0.1" required placeholder=" ">
+                <label for="initial_height">Начальная высота (м)</label>
+            </div>
+            <div class="input-group">
+                <input type="number" id="initial_temperature" step="0.1" required placeholder=" ">
+                <label for="initial_temperature">Начальная температура (°C)</label>
+            </div>
+            <div class="input-group">
+                <input type="number" id="initial_pressure" min="0" step="0.1" required placeholder=" ">
+                <label for="initial_pressure">Начальное давление (гПа)</label>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="button-danger">Отмена</button>
+            <button type="submit" class="button-success">Сохранить</button>
+        </div>
+    </form>
+</div>
