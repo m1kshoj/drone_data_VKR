@@ -224,6 +224,13 @@ function openModal(message) {
             </div>
         </div>
     `;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
+
     setTimeout(() => {
         modal.classList.add('active');
     }, 50);
@@ -259,8 +266,15 @@ async function openCreateModal() {
         const modalContent = await response.text();
 
         const modal = document.getElementById('createDroneModal');
-        if (!modal) throw new Error("Элемент #createDroneModal не найден"); // Добавлена проверка
+        if (!modal) throw new Error("Элемент #createDroneModal не найден");
         modal.innerHTML = modalContent;
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+
         setTimeout(() => {
             modal.classList.add('active');
             initFormHandlers();
@@ -331,6 +345,13 @@ async function deleteDrone(name) {
         const modal = document.getElementById('modal');
         if (!modal) throw new Error("Элемент #modal не найден");
         modal.innerHTML = modalContent;
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+
         setTimeout(() => {
             const droneNameElement = document.getElementById('droneName');
             if (droneNameElement) {
@@ -341,7 +362,6 @@ async function deleteDrone(name) {
                 const cancelBtn = modal.querySelector('#cancelDeleteBtn');
                 if (confirmBtn) confirmBtn.onclick = confirmDelete;
                 if (cancelBtn) cancelBtn.onclick = closeDeleteModal;
-
             } else {
                 throw new Error('Элемент #droneName не найден в confirm-delete-modal.html');
             }
@@ -403,6 +423,13 @@ async function editDrone(name) {
         const modal = document.getElementById('createDroneModal');
         if (!modal) throw new Error("Элемент #createDroneModal не найден");
         modal.innerHTML = modalContent;
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+
         setTimeout(() => {
             document.getElementById('editingDroneName').textContent = drone.name;
             document.getElementById('edit_name').value = drone.name;
@@ -1210,26 +1237,33 @@ function clearGraphs(confirmed = false) {
 function showClearConfirmation() {
     const modal = document.getElementById('modal');
     if (!modal) return;
+
     modal.innerHTML = `
         <div class="modal-content">
             <h3 class="modal-title">Подтверждение очистки</h3>
             <div class="modal-message">Вы уверены, что хотите остановить полет и очистить все графики? Это действие необратимо.</div>
-    <div class="modal-actions">
-                <button class="button-secondary" onclick="handleClearConfirmation(false)">Отмена</button>
-                <button class="button-danger" onclick="handleClearConfirmation(true)">Очистить</button>
+            <div class="modal-actions">
+                <button class="cancel-btn" onclick="handleClearConfirmation(false)">Отмена</button>
+                <button class="confirm-btn" onclick="handleClearConfirmation(true)">Очистить</button>
             </div>
         </div>`;
+
     modal.classList.add('active');
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+        }
+    });
 }
 
 function handleClearConfirmation(confirmed) {
     closeModalWithAnimation('modal', () => {
         if (confirmed) {
-            clearGraphs(true); // Вызываем очистку только после закрытия окна
+            clearGraphs(true);
         }
     });
 }
-
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
