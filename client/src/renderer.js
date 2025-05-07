@@ -1388,3 +1388,57 @@ document.addEventListener('keyup', (event) => {
             break;
     }
 });
+
+
+function showSettings() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'settingsModal';
+    document.body.appendChild(modal);
+
+    fetch('settings-modal.html')
+        .then(response => response.text())
+        .then(html => {
+            modal.innerHTML = html;
+
+            setTimeout(() => {
+                modal.classList.add('active');
+
+                const defaultsBtn = modal.querySelector('.defaults-btn');
+                const inputFields = modal.querySelectorAll('.input-group input');
+
+                if (defaultsBtn && inputFields.length > 0) {
+                    const btnWidth = defaultsBtn.offsetWidth;
+                    inputFields.forEach(input => {
+                        input.style.width = `${btnWidth}px`;
+                        input.style.boxSizing = 'border-box';
+                    });
+                }
+            }, 10);
+
+            modal.querySelector('.button-danger')?.addEventListener('click', closeSettingsModal);
+            modal.querySelector('.button-success')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                closeSettingsModal();
+            });
+
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeSettingsModal();
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки:', error);
+            // Обработка ошибки
+        });
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.classList.add('closing');
+        setTimeout(() => modal.remove(), 300);
+    }
+}

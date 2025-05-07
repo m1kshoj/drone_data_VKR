@@ -936,3 +936,191 @@ body:not(.dark-theme) .main-content {
     fill: #333 !important;
     stroke: #555 !important;
 }
+
+/* Стили для модального окна настроек */
+.settings-modal {
+    max-width: 500px;
+    width: 90%;
+    padding: 30px;
+}
+
+.settings-section {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+body.dark-theme .settings-section {
+    border-bottom-color: #444;
+}
+
+.section-title {
+    margin: 0 0 15px 0;
+    font-size: 1.1rem;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+body.dark-theme .section-title {
+    color: #fff;
+}
+
+.flight-shapes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.shape-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.shape-btn:hover {
+    background-color: #e9ecef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.shape-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.shape-btn svg {
+    flex-shrink: 0;
+}
+
+body.dark-theme .shape-btn {
+    background-color: #444;
+    color: #fff;
+    border-color: #555;
+}
+
+body.dark-theme .shape-btn:hover {
+    background-color: #555;
+}
+
+body.dark-theme .shape-btn.active {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.defaults-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+}
+
+.defaults-btn:hover {
+    background-color: #e9ecef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body.dark-theme .defaults-btn {
+    background-color: #444;
+    color: #fff;
+    border-color: #555;
+}
+
+body.dark-theme .defaults-btn:hover {
+    background-color: #555;
+}
+
+.modal.closing .modal-content {
+    transform: scale(0.95);
+    opacity: 0;
+}
+
+.modal-content {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out;
+}
+
+.settings-modal .input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px;
+}
+
+.settings-modal .input-group input {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.settings-modal .input-group input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Темная тема для полей ввода */
+body.dark-theme .settings-modal .input-group input {
+    background-color: #333;
+    border-color: #555;
+    color: #fff;
+}
+
+body.dark-theme .settings-modal .input-group input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+}
+
+/* Стили для полей ввода в настройках */
+.settings-modal .input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 15px;
+}
+
+.settings-modal .input-group input {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.settings-modal .input-group input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Темная тема для полей ввода */
+body.dark-theme .settings-modal .input-group input {
+    background-color: #333;
+    border-color: #555;
+    color: #fff;
+}
+
+body.dark-theme .settings-modal .input-group input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+}
