@@ -14,12 +14,20 @@ let lastAltitudeBeforeLanding = 250;  // Хранит последнюю выс�
 const INITIAL_TAKEOFF_ALTITUDE = 250; // Константа для высоты взлета
 
 // Константы для расчетов
+let heightAboveSeaLevel = 0;
 const P0 = 101325.0;  // Давление на уровне моря (Па)
 const T0 = 288.15;    // Температура на уровне моря (К)
 const L = -0.0065;    // Температурный градиент (К/м)
 const g = 9.80665;    // Ускорение свободного падения (м/с²)
 const M = 0.0289644;  // Молярная масса воздуха (кг/моль)
 const R = 8.3144598;  // Универсальная газовая постоянная (Дж/(моль·К))
+
+// Глобальные переменные для хранения настроек
+let appSettings = {
+    heightAboveSea: 0,
+    targetAltitude: INITIAL_TAKEOFF_ALTITUDE,
+    lastUpdated: null
+};
 
 // Глобальные переменные для данных графиков
 let altitude = 0;
@@ -594,13 +602,13 @@ function toggleStartStop() {
     if (isFlying) {
         if (altitude <= 0.1) {
             if (isLanded) {
-                targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
-                console.log(`Возобновление полета с земли, взлет на ${targetAltitude.toFixed(1)} м`);
+                targetAltitude = appSettings.targetAltitude;
+                console.log(`Взлет на ${targetAltitude.toFixed(1)} м`);
                 isLanded = false;
                 isAltitudeChanging = true;
             } else {
                 console.log(`Новый старт с земли, взлет на ${INITIAL_TAKEOFF_ALTITUDE} м`);
-                targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
+                targetAltitude = appSettings.targetAltitude || INITIAL_TAKEOFF_ALTITUDE;
                 lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
                 altitude = 0;
                 time = 0;
@@ -937,7 +945,6 @@ async function updateAltitude(timestamp) {
         time += deltaTime;
         let calculatedAltitude = altitude;
 
-        let oscillationApplied = false;
 
         const altitudeDifference = targetAltitude - calculatedAltitude;
         if (Math.abs(altitudeDifference) > 0.1) {
@@ -1008,10 +1015,11 @@ async function updateAltitude(timestamp) {
         }
         altitude = calculatedAltitude;
 
+        const absoluteAltitude = altitude + heightAboveSeaLevel;
         const tempFluctuation = (Math.random() - 0.5) * 0.2;
         const pressureFluctuation = (Math.random() - 0.5) * 0.1;
-        const temperature = T0 + L * altitude - 273.15 + tempFluctuation;
-        const pressureBase = P0 * Math.pow(Math.max(0.001, 1 + (L * altitude) / T0), -(g * M) / (R * L));
+        const temperature = T0 + L * absoluteAltitude - 273.15 + tempFluctuation;
+        const pressureBase = P0 * Math.pow(Math.max(0.001, 1 + (L * absoluteAltitude) / T0), -(g * M) / (R * L));
         const pressure = pressureBase / 100 + pressureFluctuation;
 
         const currentTime = parseFloat(time.toFixed(1));
@@ -1423,9 +1431,15 @@ document.addEventListener('keyup', (event) => {
     }
 });
 
-
+// Окно настроек
 function showSettings() {
-    const modal = document.createElement('div');
+    let modal = document.getElementById('settingsModal');
+    if (modal) {
+        modal.classList.add('active');
+        return;
+    }
+
+    modal = document.createElement('div');
     modal.className = 'modal';
     modal.id = 'settingsModal';
     document.body.appendChild(modal);
@@ -1435,44 +1449,132 @@ function showSettings() {
         .then(html => {
             modal.innerHTML = html;
 
-            setTimeout(() => {
-                modal.classList.add('active');
+            updateSettingsFields();
 
-                const defaultsBtn = modal.querySelector('.defaults-btn');
-                const inputFields = modal.querySelectorAll('.input-group input');
+            setupSettingsInputHandlers();
 
-                if (defaultsBtn && inputFields.length > 0) {
-                    const btnWidth = defaultsBtn.offsetWidth;
-                    inputFields.forEach(input => {
-                        input.style.width = `${btnWidth}px`;
-                        input.style.boxSizing = 'border-box';
-                    });
-                }
-            }, 10);
-
-            modal.querySelector('.button-danger')?.addEventListener('click', closeSettingsModal);
-            modal.querySelector('.button-success')?.addEventListener('click', (e) => {
-                e.preventDefault();
-                closeSettingsModal();
-            });
+            setTimeout(() => modal.classList.add('active'), 10);
 
             modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    closeSettingsModal();
-                }
+                if (e.target === modal) closeSettingsModal();
             });
         })
         .catch(error => {
-            console.error('Ошибка загрузки:', error);
-            // Обработка ошибки
+            console.error('Error loading settings modal:', error);
+            modal.innerHTML = `<div class="modal-content"><p>Error loading settings: ${error.message}</p></div>`;
+            modal.classList.add('active');
         });
+}
+
+function calculateAtmosphericParams() {
+    const absoluteAltitude = heightAboveSeaLevel;
+    const temperature = T0 + L * absoluteAltitude - 273.15;
+    const pressure = P0 * Math.pow(1 + (L * absoluteAltitude) / T0, -(g * M) / (R * L)) / 100;
+
+    return {
+        temperature: temperature.toFixed(1),
+        pressure: pressure.toFixed(1)
+    };
+}
+
+function updateSettingsFields() {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) return;
+
+    const heightInput = modal.querySelector('#height_above_sea');
+    const targetAltInput = modal.querySelector('#target_altitude');
+
+    if (heightInput && targetAltInput) {
+        heightInput.value = appSettings.heightAboveSea;
+        targetAltInput.value = appSettings.targetAltitude;
+        updateCalculatedValues();
+    }
+}
+
+function updateCalculatedValues() {
+    const height = parseFloat(document.getElementById('height_above_sea').value) || 0;
+
+    const temperature = T0 + L * height - 273.15;
+    const pressure = P0 * Math.pow(1 + (L * height) / T0, -(g * M) / (R * L)) / 100;
+
+    document.getElementById('calculated_temperature').value = temperature.toFixed(1);
+    document.getElementById('calculated_pressure').value = pressure.toFixed(1);
+}
+
+function setupSettingsInputHandlers() {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) return;
+
+    const initialHeight = appSettings.heightAboveSea;
+    const initialAltitude = appSettings.targetAltitude;
+
+    const heightInput = modal.querySelector('#height_above_sea');
+    const targetAltInput = modal.querySelector('#target_altitude');
+    const saveBtn = modal.querySelector('#saveSettingsBtn');
+    const cancelBtn = modal.querySelector('.button-danger');
+    const defaultsBtn = modal.querySelector('.defaults-btn');
+
+    if (!heightInput || !targetAltInput || !saveBtn || !cancelBtn || !defaultsBtn) {
+        console.error('One or more settings elements not found');
+        return;
+    }
+
+    heightInput.addEventListener('input', function() {
+        const value = parseFloat(this.value) || 0;
+        appSettings.heightAboveSea = value;
+        updateCalculatedValues();
+    });
+
+    targetAltInput.addEventListener('input', function() {
+        const value = parseFloat(this.value) || 0;
+        appSettings.targetAltitude = value;
+        updateCalculatedValues();
+    });
+
+    saveBtn.addEventListener('click', function() {
+        heightAboveSeaLevel = appSettings.heightAboveSea;
+        targetAltitude = appSettings.targetAltitude;
+        appSettings.lastUpdated = new Date();
+
+        if (isFlying) {
+            updateAltitudeData();
+        }
+        closeSettingsModal();
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        appSettings.heightAboveSea = initialHeight;
+        appSettings.targetAltitude = initialAltitude;
+        closeSettingsModal();
+    });
+
+    defaultsBtn.addEventListener('click', function() {
+        appSettings.heightAboveSea = 0;
+        appSettings.targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
+        updateSettingsFields();
+    });
+}
+
+function updateAltitudeData() {
+    const absoluteAltitude = heightAboveSeaLevel + altitude;
+    const params = calculateAtmosphericParams();
+
+    if (altitudeData.y.length > 0) {
+        const lastIndex = altitudeData.y.length - 1;
+        temperatureData.y[lastIndex] = parseFloat(params.temperature);
+        pressureData.y[lastIndex] = parseFloat(params.pressure);
+
+        Plotly.restyle('temperature-graph', {y: [temperatureData.y]}, [0]);
+        Plotly.restyle('pressure-graph', {y: [pressureData.y]}, [0]);
+    }
 }
 
 function closeSettingsModal() {
     const modal = document.getElementById('settingsModal');
     if (modal) {
         modal.classList.remove('active');
-        modal.classList.add('closing');
-        setTimeout(() => modal.remove(), 300);
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
     }
 }

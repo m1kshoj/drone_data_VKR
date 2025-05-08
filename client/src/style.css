@@ -356,7 +356,7 @@ body:not(.dark-theme) .graph {
     background: #fff;
     padding: 2rem;
     border-radius: 1rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
     transform: scale(0.95);
     opacity: 0;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-out;
@@ -524,7 +524,7 @@ body:not(.dark-theme) .graph {
 }
 
 .button-success {
-    background: #48bb78;
+    background-color: #28a745 !important;
     color: white;
     padding: 0.8rem 2rem;
     border-radius: 0.5rem;
@@ -568,7 +568,7 @@ body:not(.dark-theme) .graph {
 
 body.dark-theme .modal-title {
     color: #fff !important;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 body.dark-theme .modal-message {
@@ -641,7 +641,7 @@ body.dark-theme .modal-message {
 
 .drone-item.active {
     background-color: #f8f9fa !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .actions svg {
@@ -986,6 +986,34 @@ body.dark-theme .section-title {
     font-size: 14px;
 }
 
+body:not(.dark-theme) .shape-btn {
+    background-color: #e0e0e0;
+    border-color: #d0d0d0;
+    color: #333;
+}
+
+body:not(.dark-theme) .shape-btn:hover {
+    background-color: #d0d0d0;
+    border-color: #c0c0c0;
+}
+
+body:not(.dark-theme) .shape-btn.active {
+    background-color: #a0a0a0;
+    border-color: #a0a0a0;
+    color: white;
+}
+
+body:not(.dark-theme) .defaults-btn {
+    background-color: #e0e0e0;
+    border-color: #d0d0d0;
+    color: #333;
+}
+
+body:not(.dark-theme) .defaults-btn:hover {
+    background-color: #d0d0d0;
+    border-color: #c0c0c0;
+}
+
 .shape-btn:hover {
     background-color: #e9ecef;
     transform: translateY(-2px);
@@ -1079,33 +1107,27 @@ body.dark-theme .defaults-btn:hover {
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
-/* Темная тема для полей ввода */
-body.dark-theme .settings-modal .input-group input {
-    background-color: #333;
-    border-color: #555;
-    color: #fff;
-}
-
-body.dark-theme .settings-modal .input-group input:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
-}
-
-/* Стили для полей ввода в настройках */
+/* Обновленные стили для полей ввода в настройках */
 .settings-modal .input-group {
     display: flex;
     flex-direction: column;
     margin-bottom: 15px;
+    max-width: 100%;
 }
 
 .settings-modal .input-group input {
-    width: 100%;
+    width: auto;
     max-width: 100%;
     padding: 10px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
     transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.settings-modal .settings-section .input-group input {
+    width: 100%;
 }
 
 .settings-modal .input-group input:focus {
@@ -1113,7 +1135,6 @@ body.dark-theme .settings-modal .input-group input:focus {
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 
-/* Темная тема для полей ввода */
 body.dark-theme .settings-modal .input-group input {
     background-color: #333;
     border-color: #555;
