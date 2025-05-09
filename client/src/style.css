@@ -1100,3 +1100,10 @@ body.dark-theme {
     transform: scale(0.95);
     opacity: 0;
 }
+
+
+/* Добавьте в ваш style.css */
+.active-flight-mode {
+    background-color: blue !important;
+    color: white !important;
+}
