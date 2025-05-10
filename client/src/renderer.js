@@ -994,6 +994,7 @@ function updateDronePosition(timestamp) {
                 newX = targetX_return;
                 newY = targetY_return;
                 if (Math.abs(altitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.5 && !isAltitudeChanging) {
+                    console.log("Position and altitude restored after landing cancellation. Resuming path.");
                     isReturningToPathAfterLandingCancel = false;
                     isPathPausedForLanding = false;
 
@@ -1021,7 +1022,7 @@ function updateDronePosition(timestamp) {
     } else if (isPathPausedForLanding || (isLanded && !(isSquareModeActive || isCircleModeActive))) {
     }
     else if (!isLanded) {
-        if (isSquareModeActive && droneReachedTargetAltitudeForSquarePath) {
+        if (isSquareModeActive) {
             isFlyingSquarePath = true;
             const targetPos = squarePathCoordinates[currentSquarePathIndex];
             const dX_sq = targetPos.x - newX;
@@ -1035,12 +1036,13 @@ function updateDronePosition(timestamp) {
                 currentSquarePathIndex++;
                 if (currentSquarePathIndex >= (squarePathCoordinates.length - 1)) {
                     currentSquarePathIndex = 0;
+                    console.log("Square path loop.");
                 }
             } else {
                 newX += dX_sq / dist_sq * step_sq;
                 newY += dY_sq / dist_sq * step_sq;
             }
-        } else if (isCircleModeActive && droneReachedTargetAltitudeForCirclePath) {
+        } else if (isCircleModeActive) {
             if (isApproachingCircleStart) {
                 currentCircleApproachTarget = CIRCLE_START_POINT;
                 const dX_circle_approach = currentCircleApproachTarget.x - newX;
@@ -1054,6 +1056,7 @@ function updateDronePosition(timestamp) {
                     isApproachingCircleStart = false;
                     isFlyingCirclePath = true;
                     currentCircleAngle = 0;
+                    console.log("Reached circle start point. Starting circular path.");
                 } else {
                     newX += dX_circle_approach / dist_circle_approach * step_circle_approach;
                     newY += dY_circle_approach / dist_circle_approach * step_circle_approach;
@@ -1068,6 +1071,7 @@ function updateDronePosition(timestamp) {
 
                 if (currentCircleAngle >= (Math.PI * 2)) {
                     currentCircleAngle -= (Math.PI * 2);
+                    console.log("Circle path loop.");
                 }
             }
         } else if (!(isSquareModeActive || isCircleModeActive)) {
@@ -1142,12 +1146,14 @@ async function updateAltitude(timestamp) {
     if (isSquareModeActive) {
         if (!droneReachedTargetAltitudeForSquarePath && !isAltitudeChanging && !isLanded) {
             droneReachedTargetAltitudeForSquarePath = true;
+            console.log("Initial target altitude reached for Square Mode path start.");
         }
     }
 
     if (isCircleModeActive) {
         if (!droneReachedTargetAltitudeForCirclePath && !isAltitudeChanging && !isLanded) {
             droneReachedTargetAltitudeForCirclePath = true;
+            console.log("Initial target altitude reached for Circle Mode. Approach/path will start if conditions met.");
         }
     }
 
@@ -1172,6 +1178,7 @@ async function updateAltitude(timestamp) {
                 }
                 if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
                     Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
+                    console.log("Target altitude for path resumption reached.");
                 }
             } else {
                 controlAltitude += step;
@@ -1185,6 +1192,7 @@ async function updateAltitude(timestamp) {
             }
             if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
                 Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
+                console.log("Target altitude for path resumption reached (snapped).");
             }
         }
 
@@ -1267,6 +1275,7 @@ function increaseAltitude() {
 
     if (isLanded) {
         if (isSquareModeActive || isCircleModeActive) {
+            console.log("Altitude Up (E) pressed while landed in Special Mode. Small liftoff, path continues.");
             isLanded = false;
             isAltitudeChanging = true;
 
@@ -1275,6 +1284,7 @@ function increaseAltitude() {
             const increment = Math.min(50, step);
 
             targetAltitude = (altitude > 0.1 ? altitude : 0) + increment;
+            console.log(`E-Takeoff (Special Mode): New Target: ${targetAltitude.toFixed(1)}. Path should continue.`);
 
             if (altitudeAnimationFrameId === null && isFlying) {
                 lastAltitudeUpdate = performance.now();
@@ -1282,6 +1292,7 @@ function increaseAltitude() {
             }
             return;
         } else {
+            console.log("Increase altitude (E) pressed while landed (Standard Mode or not in special mode). Initiating standard takeoff procedure.");
             _initiateTakeoff(true);
             return;
         }
@@ -1291,6 +1302,7 @@ function increaseAltitude() {
     const step = Math.max(1, Math.round(currentTarget / 100));
     const altitudeIncrement = Math.min(50, step);
     targetAltitude = Math.min(currentTarget + altitudeIncrement, 10000);
+    console.log(`Increasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
     if (altitudeAnimationFrameId === null && isFlying) {
@@ -1302,6 +1314,7 @@ function increaseAltitude() {
 function decreaseAltitude() {
     if (!isFlying) return;
     if (isLanded && targetAltitude <= 0.1) {
+        console.log("Cannot decrease altitude: Already landed and target is effectively zero.");
         return;
     }
 
@@ -1313,12 +1326,15 @@ function decreaseAltitude() {
 
     if (newCalculatedTargetAltitude <= 0.1 && currentTargetVal > 0.1 && !isLanded) {
         lastAltitudeBeforeLanding = currentActualAltitude;
+        console.log(`Q-Descent leading to land: Storing lastAltitudeBeforeLanding = ${lastAltitudeBeforeLanding.toFixed(1)}`);
     }
 
     targetAltitude = newCalculatedTargetAltitude;
+    console.log(`Decreasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
     if (targetAltitude <= 0.1 && !isLanded) {
+        console.log("Targeting ground with decreaseAltitude button. This will be a manual landing.");
     }
 
     if (altitudeAnimationFrameId === null && isFlying) {
@@ -1330,11 +1346,13 @@ function decreaseAltitude() {
 // Функция посадки/взлёта
 function toggleLandTakeoff() {
     if (!isFlying) {
+        console.log("Cannot toggle land/takeoff: Not flying.");
         return;
     }
 
     if (isSquareModeActive || isCircleModeActive) {
         if (landingSequenceActiveInMode) {
+            console.log("Special Mode: Landing cancel requested. Returning to previous path and altitude.");
             if (dronePathBeforeLanding) {
                 targetAltitude = dronePathBeforeLanding.altitudeBeforeLanding;
                 isAltitudeChanging = true;
@@ -1343,9 +1361,11 @@ function toggleLandTakeoff() {
                 isPathPausedForLanding = true;
                 isLanded = false;
             } else {
+                console.warn("Special Mode: Landing cancel pressed, but no previous path data. Taking off to default alt.");
                 _initiateTakeoff(false);
             }
         } else if (!isLanded) {
+            console.log("Special Mode: Landing initiated. Storing current state and returning to origin (0,0).");
             dronePathBeforeLanding = {
                 x: x, y: y, altitudeBeforeLanding: altitude, modeState: {}
             };
@@ -1363,14 +1383,19 @@ function toggleLandTakeoff() {
         } else {
 
             if (dronePathBeforeLanding) {
+                console.log("Special Mode: Takeoff by L after SPECIAL L-landing (drone at 0,0). Path restart from origin.");
                 _initiateTakeoff(false);
                 dronePathBeforeLanding = null;
             } else {
+                console.log("Special Mode: Takeoff by L (after Q-land or initial on path). Target: lastAltitudeBeforeLanding.");
+
                 let takeoffAltitude;
                 if (lastAltitudeBeforeLanding > 1) {
                     takeoffAltitude = lastAltitudeBeforeLanding;
+                    console.log(`L-Takeoff (Q-land/initial): Target altitude set to last remembered: ${takeoffAltitude.toFixed(1)}`);
                 } else {
                     takeoffAltitude = INITIAL_TAKEOFF_ALTITUDE;
+                    console.log(`L-Takeoff (Q-land/initial): lastAltitudeBeforeLanding was <=1 or uninitialized, using INITIAL_TAKEOFF_ALTITUDE: ${takeoffAltitude.toFixed(1)}`);
                 }
 
                 targetAltitude = takeoffAltitude;
@@ -1404,10 +1429,12 @@ function toggleLandTakeoff() {
 
     // Стандартный режим
     if (isLanded) {
+        console.log("Standard Mode: Takeoff initiated.");
         targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
         isLanded = false;
         isAltitudeChanging = true;
     } else {
+        console.log("Standard Mode: Landing initiated.");
         if (altitude > 0.1) lastAltitudeBeforeLanding = altitude;
         else lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
         targetAltitude = 0;
@@ -1475,12 +1502,14 @@ function clearGraphs(confirmed = false) {
     currentSquarePathIndex = 0;
     isFlyingSquarePath = false;
     droneReachedTargetAltitudeForSquarePath = false;
+    console.log("Square mode state reset during graph clearing.");
 
     isFlyingCirclePath = false;
     droneReachedTargetAltitudeForCirclePath = false;
     currentCircleAngle = 0;
     isApproachingCircleStart = true;
     currentCircleApproachTarget = null;
+    console.log("Circle mode flight parameters reset on clear.");
 
     dronePathBeforeLanding = null;
     isReturningToPathAfterLandingCancel = false;
@@ -1634,6 +1663,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Движение дрона на графике
 function moveForward() {
     if (isSquareModeActive) {
+        console.log("Manual control disabled in Square Mode.");
         return;
     }
     if (isFlying && !isLanded) speedY = 1;
@@ -1641,6 +1671,7 @@ function moveForward() {
 
 function moveBackward() {
     if (isSquareModeActive) {
+        console.log("Manual control disabled in Square Mode.");
         return;
     }
     if (isFlying && !isLanded) speedY = -1;
@@ -1648,6 +1679,7 @@ function moveBackward() {
 
 function moveLeft() {
     if (isSquareModeActive) {
+        console.log("Manual control disabled in Square Mode.");
         return;
     }
     if (isFlying && !isLanded) speedX = -1;
@@ -1655,6 +1687,7 @@ function moveLeft() {
 
 function moveRight() {
     if (isSquareModeActive) {
+        console.log("Manual control disabled in Square Mode.");
         return;
     }
     if (isFlying && !isLanded) speedX = 1;
@@ -1669,6 +1702,7 @@ document.addEventListener('keydown', (event) => {
 
     if (isSquareModeActive && isFlying && !isLanded) {
         if (event.code !== 'KeyQ' && event.code !== 'KeyE' && event.code !== 'KeyL') {
+            console.log("Keyboard control disabled in Square Mode.");
             return;
         }
     }
@@ -1859,6 +1893,7 @@ function setupSettingsInputHandlers() {
         heightAboveSeaLevel = newH;
         if (isFlying && newT !== appSettings.targetAltitude && isSquareModeActive) {
             isFlyingSquarePath = false;
+            console.log("Square path paused due to target altitude change.");
         }
         appSettings.targetAltitude = newT;
         targetAltitude = newT;
@@ -1925,6 +1960,8 @@ function handleSquareModeToggle() {
         landingSequenceActiveInMode = false;
         isReturningToPathAfterLandingCancel = false;
         dronePathBeforeLanding = null;
+
+        console.log("Square mode activated. Waiting for flight start and target altitude.");
     } else {
         if (squareButton) {
             squareButton.classList.remove('active-flight-mode');
@@ -1932,6 +1969,7 @@ function handleSquareModeToggle() {
         }
         otherShapeButtons.forEach(btn => btn.disabled = false);
         isFlyingSquarePath = false;
+        console.log("Square mode deactivated.");
     }
     updateSettingsFields();
 }
@@ -1967,11 +2005,13 @@ function handleCircleModeToggle() {
         isReturningToPathAfterLandingCancel = false;
         dronePathBeforeLanding = null;
 
+        console.log("Circle mode activated. Waiting for flight start and target altitude for approach.");
     } else {
         if (circleBtn) circleBtn.classList.remove('active-flight-mode');
         otherShapeButtons.forEach(b => b.disabled = false);
         isApproachingCircleStart = false;
         isFlyingCirclePath = false;
+        console.log("Circle mode deactivated.");
     }
     updateSettingsFields();
 }
