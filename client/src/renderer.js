@@ -1109,55 +1109,22 @@ function updateDronePosition(timestamp) {
 
         const mainGraphDiv = document.getElementById('main-graph');
         if (mainGraphDiv && mainGraphDiv.layout && mainGraphDiv.layout.xaxis && mainGraphDiv.layout.yaxis) {
-            const currentLayout = mainGraphDiv.layout;
+            const currentLayout = document.getElementById('main-graph').layout;
             const xRange = currentLayout.xaxis.range;
             const yRange = currentLayout.yaxis.range;
-            const padding = 20;
-            const zoomOutFactor = 1.5;
-
-            let needsRelayout = false;
-            const newXRange_plot = [...xRange];
-            const newYRange_plot = [...yRange];
-
-            if (x + padding > newXRange_plot[1]) {
-                newXRange_plot[1] = x + padding * zoomOutFactor;
-                needsRelayout = true;
-            }
-            if (x - padding < newXRange_plot[0]) {
-                newXRange_plot[0] = x - padding * zoomOutFactor;
-                needsRelayout = true;
-            }
-            if (y + padding > newYRange_plot[1]) {
-                newYRange_plot[1] = y + padding * zoomOutFactor;
-                needsRelayout = true;
-            }
-            if (y - padding < newYRange_plot[0]) {
-                newYRange_plot[0] = y - padding * zoomOutFactor;
-                needsRelayout = true;
-            }
-
-            const minViewSpan = 50;
-            if (newXRange_plot[1] - newXRange_plot[0] < minViewSpan) {
-                const midX = (newXRange_plot[0] + newXRange_plot[1]) / 2;
-                newXRange_plot[0] = midX - minViewSpan / 2;
-                newXRange_plot[1] = midX + minViewSpan / 2;
-                needsRelayout = true;
-            }
-            if (newYRange_plot[1] - newYRange_plot[0] < minViewSpan) {
-                const midY = (newYRange_plot[0] + newYRange_plot[1]) / 2;
-                newYRange_plot[0] = midY - minViewSpan / 2;
-                newYRange_plot[1] = midY + minViewSpan / 2;
-                needsRelayout = true;
-            }
-
-            if (needsRelayout) {
-                Plotly.relayout('main-graph', {
-                    'xaxis.range': newXRange_plot,
-                    'yaxis.range': newYRange_plot,
-                    'yaxis.scaleanchor': "x",
-                    'yaxis.scaleratio': 1
-                }).catch(e => console.error("Plotly relayout error:", e));
-            }
+            const padding = 10;
+            const newXRange = [
+                Math.min(x - padding, xRange[0], -padding),
+                Math.max(x + padding, xRange[1], padding)
+            ];
+            const newYRange = [
+                Math.min(y - padding, yRange[0], -padding),
+                Math.max(y + padding, yRange[1], padding)
+            ];
+            Plotly.relayout('main-graph', {
+                'xaxis.range': newXRange,
+                'yaxis.range': newYRange
+            });
         }
     }
     droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
