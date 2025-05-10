@@ -944,7 +944,7 @@ function updateGraphTheme() {
     initPressureGraph();
 }
 
-let lastPositionUpdate = 0;и
+let lastPositionUpdate = 0;
 let lastAltitudeUpdate = 0;
 let lastPlotlyUpdateTimeGraphs = 0;
 
