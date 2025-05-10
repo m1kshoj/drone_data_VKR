@@ -10,8 +10,8 @@ let smoothedOscillation = 0;
 const OSCILLATION_SMOOTHING_FACTOR = 0.5; // Коэффициент сглаживания (0.1 = 10% нового значения, 90% старого)
 
 let isLanded = false;                 // Отслеживает, приземлен ли дрон (для кнопки посадки/взлета)
-let lastAltitudeBeforeLanding = 250;  // Хранит последнюю высоту перед посадкой, по умолчанию - высота взлета
-const INITIAL_TAKEOFF_ALTITUDE = 250; // Константа для высоты взлета
+let lastAltitudeBeforeLanding = 3;  // Хранит последнюю высоту перед посадкой, по умолчанию - высота взлета
+const INITIAL_TAKEOFF_ALTITUDE = 3; // Константа для высоты взлета
 
 // Константы для расчетов
 let heightAboveSeaLevel = 0;
@@ -57,10 +57,8 @@ let pressureData = {
 };
 
 let targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
-const BASE_ASCENT_RATE = 5.0;  // Увеличим базовую скорость для более быстрого взлета на 250м
+const BASE_ASCENT_RATE = 5.0;  // базовая скорость для более быстрого взлета на 250м
 const BASE_DESCENT_RATE = 4.0; // Базовая скорость снижения (м/с)
-const PASSIVE_OSCILLATION_AMPLITUDE = 1.5; // Амплитуда пассивных колебаний (±1.5 метра)
-const PASSIVE_OSCILLATION_FREQUENCY = 0.5; // Частота пассивных колебаний (в Гц, влияет на скорость)
 const PLOTLY_UPDATE_INTERVAL = 10; // Обновлять Plotly не чаще чем раз в 100 мс
 let lastPlotlyUpdate = 0; // Для ограничения частоты обновления Plotly
 
@@ -106,6 +104,22 @@ const SQUARE_PATH_SPEED = 10;
 let droneReachedTargetAltitudeForSquarePath = false;
 let controlAltitude = 0;    // опорная высота, по ней считаем посадку/взлёт и флаги
 
+let isCircleModeActive = false;
+let isFlyingCirclePath = false;
+let droneReachedTargetAltitudeForCirclePath = false;
+const CIRCLE_RADIUS = 50;
+const CIRCLE_ANGULAR_SPEED = Math.PI / 10;
+let currentCircleAngle = 0;
+
+let isApproachingCircleStart = false; // Это верно, когда активен режим круга и дрон должен долететь до начальной точки круга
+let currentCircleApproachTarget = null; // Сохраняет цель {x, y} для фазы сближения в режиме круга
+const CIRCLE_START_POINT = {x: 0, y: 50}; // Точка, к которой подлетает дрон, прежде чем начать круговое движение. Соответствует первой точке квадрата.
+const CIRCLE_APPROACH_SPEED = 10; // Скорость приближения к начальной точке круга, аналогичная скорости SQUARE_PATH_SPEED
+
+let dronePathBeforeLanding = null; // Сохраняет состояние дрона (местоположение, высоту, особенности режима) перед началом посадки в режиме квадрата /круга.
+let isReturningToPathAfterLandingCancel = false; // True если посадка была отменена в специальном режиме и беспилотник возвращается на прежнюю траекторию полета
+let landingSequenceActiveInMode = false; // True если последовательность посадки (полет до 0,0 и снижение) активна в режиме квадрата или круга
+let isPathPausedForLanding = false; // True если необходимо приостановить выполнение обычной траектории (движение по квадрату/кругу) (например, во время приземления).
 
 // Карточка дрона
 function createDroneCard(drone) {
@@ -193,7 +207,7 @@ async function loadDroneDetails(droneName, element) {
         setContent('.weight', data.weight ? `${data.weight} кг` : '-');
         setContent('.max-height', data.max_height ? `${data.max_height} м` : '-');
         setContent('.max-temp', data.max_temperature ? `${data.max_temperature} °C` : '-');
-        setContent('.max-pressure', data.max_altitude ? `${data.max_altitude} гПа` : '-'); // Уточнить семантику поля max_altitude
+        setContent('.max-pressure', data.max_altitude ? `${data.max_altitude} гПа` : '-');
     } catch (error) {
         console.error('Ошибка загрузки деталей:', error);
         const errorEl = element.querySelector('.error-message') || document.createElement('div');
@@ -353,7 +367,6 @@ function initFormHandlers() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // renderDrones(); // Загрузка дронов теперь в loadDrones() ниже
     const createButton = document.querySelector('.search-bar button');
     if (createButton) {
         createButton.onclick = openCreateModal;
@@ -548,7 +561,7 @@ function toggleTheme() {
 }
 
 function initTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'dark'; // По умолчанию темная тема
+    const savedTheme = localStorage.getItem('theme') || 'dark';
     document.body.classList.toggle('dark-theme', savedTheme === 'dark');
 }
 
@@ -606,8 +619,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDrones();
 });
 
-let altitudeAnimationFrameId = null;// ID для requestAnimationFrame высоты
-let droneAnimationFrameId = null;   // ID для requestAnimationFrame позиции
+let altitudeAnimationFrameId = null;
+let droneAnimationFrameId = null;
 
 // Переключение старт/стоп полета
 function toggleStartStop() {
@@ -623,6 +636,36 @@ function toggleStartStop() {
                 console.log(`Взлет на ${targetAltitude.toFixed(1)} м`);
                 isLanded = false;
                 isAltitudeChanging = true;
+
+                if (isSquareModeActive) {
+                    currentSquarePathIndex = 0;
+                    isFlyingSquarePath = false;
+                    droneReachedTargetAltitudeForSquarePath = false;
+                    x = 0;
+                    y = 0;
+                    if (path.length === 0 || path[path.length - 1].x !== 0 || path[path.length - 1].y !== 0) path = [{
+                        x: 0,
+                        y: 0
+                    }];
+                }
+                if (isCircleModeActive) {
+                    isApproachingCircleStart = true;
+                    currentCircleApproachTarget = null;
+                    isFlyingCirclePath = false;
+                    currentCircleAngle = 0;
+                    droneReachedTargetAltitudeForCirclePath = false;
+                    x = 0;
+                    y = 0;
+                    if (path.length === 0 || path[path.length - 1].x !== 0 || path[path.length - 1].y !== 0) path = [{
+                        x: 0,
+                        y: 0
+                    }];
+                }
+                isPathPausedForLanding = false;
+                landingSequenceActiveInMode = false;
+                isReturningToPathAfterLandingCancel = false;
+                dronePathBeforeLanding = null;
+
             } else {
                 console.log(`Новый старт с земли, взлет на ${INITIAL_TAKEOFF_ALTITUDE} м`);
                 targetAltitude = appSettings.targetAltitude || INITIAL_TAKEOFF_ALTITUDE;
@@ -651,6 +694,22 @@ function toggleStartStop() {
                 Plotly.relayout('pressure-graph', timeGraphLayoutUpdate).catch(e => console.error(e));
                 isAltitudeChanging = true;
                 isLanded = false;
+
+                if (isSquareModeActive) {
+                    currentSquarePathIndex = 0;
+                    isFlyingSquarePath = false;
+                    droneReachedTargetAltitudeForSquarePath = false;
+                }
+                if (isCircleModeActive) {
+                    isApproachingCircleStart = true;
+                    isFlyingCirclePath = false;
+                    currentCircleAngle = 0;
+                    droneReachedTargetAltitudeForCirclePath = false;
+                }
+                isPathPausedForLanding = false;
+                landingSequenceActiveInMode = false;
+                isReturningToPathAfterLandingCancel = false;
+                dronePathBeforeLanding = null;
             }
         } else {
             console.log(`Возобновление полета в воздухе на высоте ${altitude.toFixed(1)} м`);
@@ -693,6 +752,11 @@ function toggleStartStop() {
         speedX = 0;
         speedY = 0;
         isAltitudeChanging = false;
+
+        isPathPausedForLanding = false;
+        landingSequenceActiveInMode = false;
+        isReturningToPathAfterLandingCancel = false;
+        dronePathBeforeLanding = null;
     }
 }
 
@@ -797,8 +861,8 @@ function initPressureGraph(reset = false) {
 // Инициализация основного графика (положения)
 function initMainGraph(reset = false) {
     const isDark = document.body.classList.contains('dark-theme');
-    const gridColor = isDark ? '#555' : '#ccc'; //
-    const zeroLineColor = isDark ? '#888' : '#aaa'; //
+    const gridColor = isDark ? '#555' : '#ccc';
+    const zeroLineColor = isDark ? '#888' : '#aaa';
     const layoutConfig = {
         title: {text: 'График местоположения'},
         xaxis: {
@@ -808,7 +872,7 @@ function initMainGraph(reset = false) {
             zerolinewidth: 1.5
         },
         yaxis: {
-            title: {text: 'Ось Y (м)'}, //
+            title: {text: 'Ось Y (м)'},
             range: [-10, 10],
             zerolinecolor: zeroLineColor,
             zerolinewidth: 1.5,
@@ -818,14 +882,14 @@ function initMainGraph(reset = false) {
         shapes: [
             {type: 'line', x0: -1000, y0: 0, x1: 1000, y1: 0, line: {color: gridColor, width: 1}, layer: 'below'},
             {type: 'line', x0: 0, y0: -1000, x1: 0, y1: 1000, line: {color: gridColor, width: 1}, layer: 'below'}
-        ], //
+        ],
         hovermode: 'closest',
         showlegend: false,
         dragmode: 'zoom'
     };
 
-    const currentX = reset || !path || path.length === 0 ? 0 : path[path.length - 1].x; //
-    const currentY = reset || !path || path.length === 0 ? 0 : path[path.length - 1].y; //
+    const currentX = reset || !path || path.length === 0 ? 0 : path[path.length - 1].x;
+    const currentY = reset || !path || path.length === 0 ? 0 : path[path.length - 1].y;
 
     const startPointX = (reset || !path || path.length === 0) ? 0 : path[0].x;
     const startPointY = (reset || !path || path.length === 0) ? 0 : path[0].y;
@@ -880,86 +944,223 @@ function updateGraphTheme() {
     initPressureGraph();
 }
 
-let lastPositionUpdate = 0; // Обновление последней позиции
-let lastAltitudeUpdate = 0; // Обновление последней высоты
-let lastPlotlyUpdateTimeGraphs = 0; // Обновление времени
+let lastPositionUpdate = 0;и
+let lastAltitudeUpdate = 0;
+let lastPlotlyUpdateTimeGraphs = 0;
 
-const PLOTLY_UPDATE_INTERVAL_TIME = 10; // Обновление временных графиков
+const PLOTLY_UPDATE_INTERVAL_TIME = 10;
 
 // Обновление позиции дрона
 function updateDronePosition(timestamp) {
     if (!isFlying || droneAnimationFrameId === null) return;
 
-    const deltaTime = (timestamp - lastPositionUpdate) / 1000.0;
+    const effectiveDeltaTime = (timestamp - lastPositionUpdate) / 1000.0;
+    let newX = x;
+    let newY = y;
 
-    if (deltaTime > 0) {
-        const moveStep = 5.0;
-        x += speedX * moveStep * deltaTime;
-        y += speedY * moveStep * deltaTime;
+    if (effectiveDeltaTime <= 0) {
+        lastPositionUpdate = timestamp;
+        droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
+        return;
+    }
 
-        const limit = 100;
-        x = Math.max(-limit, Math.min(limit, x));
-        y = Math.max(-limit, Math.min(limit, y));
+    // Движение при специальных состояниях (посадка, возврат на путь)
+    if (landingSequenceActiveInMode && !isReturningToPathAfterLandingCancel) {
+        const targetX_land = 0, targetY_land = 0;
+        const dX_land = targetX_land - newX;
+        const dY_land = targetY_land - newY;
+        const dist_land = Math.hypot(dX_land, dY_land);
+        const speed_land = SQUARE_PATH_SPEED;
+        const step_land = speed_land * effectiveDeltaTime;
+
+        if (dist_land <= step_land) {
+            newX = targetX_land;
+            newY = targetY_land;
+        } else {
+            newX += dX_land / dist_land * step_land;
+            newY += dY_land / dist_land * step_land;
+        }
+    } else if (isReturningToPathAfterLandingCancel) {
+        if (dronePathBeforeLanding) {
+            const targetX_return = dronePathBeforeLanding.x;
+            const targetY_return = dronePathBeforeLanding.y;
+            const dX_return = targetX_return - newX;
+            const dY_return = targetY_return - newY;
+            const dist_return = Math.hypot(dX_return, dY_return);
+            const speed_return = SQUARE_PATH_SPEED;
+            const step_return = speed_return * effectiveDeltaTime;
+
+            if (dist_return <= step_return) {
+                newX = targetX_return;
+                newY = targetY_return;
+                if (Math.abs(altitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.5 && !isAltitudeChanging) {
+                    console.log("Position and altitude restored after landing cancellation. Resuming path.");
+                    isReturningToPathAfterLandingCancel = false;
+                    isPathPausedForLanding = false;
+
+                    if (dronePathBeforeLanding.modeState.type === 'square') {
+                        currentSquarePathIndex = dronePathBeforeLanding.modeState.index;
+                        droneReachedTargetAltitudeForSquarePath = dronePathBeforeLanding.modeState.reachedAlt;
+                        isFlyingSquarePath = dronePathBeforeLanding.modeState.isFlying;
+                    } else if (dronePathBeforeLanding.modeState.type === 'circle') {
+                        currentCircleAngle = dronePathBeforeLanding.modeState.angle;
+                        droneReachedTargetAltitudeForCirclePath = dronePathBeforeLanding.modeState.reachedAlt;
+                        isApproachingCircleStart = dronePathBeforeLanding.modeState.isApproaching;
+                        currentCircleApproachTarget = dronePathBeforeLanding.modeState.approachTarget;
+                        isFlyingCirclePath = dronePathBeforeLanding.modeState.isFlying;
+                    }
+                    dronePathBeforeLanding = null;
+                }
+            } else {
+                newX += dX_return / dist_return * step_return;
+                newY += dY_return / dist_return * step_return;
+            }
+        } else {
+            isReturningToPathAfterLandingCancel = false;
+            isPathPausedForLanding = false;
+        }
+    } else if (isPathPausedForLanding || (isLanded && !(isSquareModeActive || isCircleModeActive))) {
+    }
+    else if (!isLanded) {
+        if (isSquareModeActive && droneReachedTargetAltitudeForSquarePath) {
+            isFlyingSquarePath = true;
+            const targetPos = squarePathCoordinates[currentSquarePathIndex];
+            const dX_sq = targetPos.x - newX;
+            const dY_sq = targetPos.y - newY;
+            const dist_sq = Math.hypot(dX_sq, dY_sq);
+            const step_sq = SQUARE_PATH_SPEED * effectiveDeltaTime;
+
+            if (dist_sq <= step_sq) {
+                newX = targetPos.x;
+                newY = targetPos.y;
+                currentSquarePathIndex++;
+                if (currentSquarePathIndex >= (squarePathCoordinates.length - 1)) {
+                    currentSquarePathIndex = 0;
+                    console.log("Square path loop.");
+                }
+            } else {
+                newX += dX_sq / dist_sq * step_sq;
+                newY += dY_sq / dist_sq * step_sq;
+            }
+        } else if (isCircleModeActive && droneReachedTargetAltitudeForCirclePath) {
+            if (isApproachingCircleStart) {
+                currentCircleApproachTarget = CIRCLE_START_POINT;
+                const dX_circle_approach = currentCircleApproachTarget.x - newX;
+                const dY_circle_approach = currentCircleApproachTarget.y - newY;
+                const dist_circle_approach = Math.hypot(dX_circle_approach, dY_circle_approach);
+                const step_circle_approach = CIRCLE_APPROACH_SPEED * effectiveDeltaTime;
+
+                if (dist_circle_approach <= step_circle_approach) {
+                    newX = currentCircleApproachTarget.x;
+                    newY = currentCircleApproachTarget.y;
+                    isApproachingCircleStart = false;
+                    isFlyingCirclePath = true;
+                    currentCircleAngle = 0;
+                    console.log("Reached circle start point. Starting circular path.");
+                } else {
+                    newX += dX_circle_approach / dist_circle_approach * step_circle_approach;
+                    newY += dY_circle_approach / dist_circle_approach * step_circle_approach;
+                }
+            } else {
+                isFlyingCirclePath = true;
+                const dAngle = CIRCLE_ANGULAR_SPEED * effectiveDeltaTime;
+                currentCircleAngle += dAngle;
+
+                newX = CIRCLE_RADIUS * Math.sin(currentCircleAngle);
+                newY = CIRCLE_RADIUS * Math.cos(currentCircleAngle);
+
+                if (currentCircleAngle >= (Math.PI * 2)) {
+                    currentCircleAngle -= (Math.PI * 2);
+                    console.log("Circle path loop.");
+                }
+            }
+        } else if (!(isSquareModeActive || isCircleModeActive)) {
+            const moveStep = 5.0;
+            newX += speedX * moveStep * effectiveDeltaTime;
+            newY += speedY * moveStep * effectiveDeltaTime;
+
+            const limit = 100;
+            newX = Math.max(-limit, Math.min(limit, newX));
+            newY = Math.max(-limit, Math.min(limit, newY));
+        }
+    }
+
+    x = newX;
+    y = newY;
+
+    const lastPathPoint = path.length > 0 ? path[path.length - 1] : null;
+    if (!lastPathPoint || lastPathPoint.x !== x || lastPathPoint.y !== y) {
         path.push({x, y});
     }
 
-    if (isSquareModeActive && isFlyingSquarePath && !isAltitudeChanging) {
-        const targetPos = squarePathCoordinates[currentSquarePathIndex];
-        const dX = targetPos.x - x, dY = targetPos.y - y;
-        const dist = Math.hypot(dX, dY);
-        const step = SQUARE_PATH_SPEED * (timestamp - lastPositionUpdate) / 1000;
-        if (dist <= step) {
-            x = targetPos.x;
-            y = targetPos.y;
-            currentSquarePathIndex++;
-            if (currentSquarePathIndex >= squarePathCoordinates.length) {
-                console.log("Square path completed.");
-                isFlyingSquarePath = false;
-            }
-        } else {
-            x += dX / dist * step;
-            y += dY / dist * step;
-        }
-    } else {}
-
     lastPositionUpdate = timestamp;
-
     if (timestamp - lastPlotlyUpdate > PLOTLY_UPDATE_INTERVAL) {
         lastPlotlyUpdate = timestamp;
-
         const pathLineData = {
             x: [path.map(p => p.x)],
             y: [path.map(p => p.y)]
         };
-
         const currentPositionMarkerData = {
-            x: [[x]], //
-            y: [[y]]  //
+            x: [[x]],
+            y: [[y]]
         };
+        Plotly.restyle('main-graph', pathLineData, [1]).catch(e => console.error("Plotly restyle path error:", e));
+        Plotly.restyle('main-graph', currentPositionMarkerData, [2]).catch(e => console.error("Plotly restyle marker error:", e));
 
-        Plotly.restyle('main-graph', pathLineData, [1]);
-        Plotly.restyle('main-graph', currentPositionMarkerData, [2]);
+        const mainGraphDiv = document.getElementById('main-graph');
+        if (mainGraphDiv && mainGraphDiv.layout && mainGraphDiv.layout.xaxis && mainGraphDiv.layout.yaxis) {
+            const currentLayout = mainGraphDiv.layout;
+            const xRange = currentLayout.xaxis.range;
+            const yRange = currentLayout.yaxis.range;
+            const padding = 20;
+            const zoomOutFactor = 1.5;
 
+            let needsRelayout = false;
+            const newXRange_plot = [...xRange];
+            const newYRange_plot = [...yRange];
 
-        const currentLayout = document.getElementById('main-graph').layout;
-        const xRange = currentLayout.xaxis.range;
-        const yRange = currentLayout.yaxis.range;
-        const padding = 10;
-        const newXRange = [
-            Math.min(x - padding, xRange[0], -padding),
-            Math.max(x + padding, xRange[1], padding)
-        ];
-        const newYRange = [
-            Math.min(y - padding, yRange[0], -padding),
-            Math.max(y + padding, yRange[1], padding)
-        ];
-        Plotly.relayout('main-graph', {
-            'xaxis.range': newXRange,
-            'yaxis.range': newYRange
-        });
+            if (x + padding > newXRange_plot[1]) {
+                newXRange_plot[1] = x + padding * zoomOutFactor;
+                needsRelayout = true;
+            }
+            if (x - padding < newXRange_plot[0]) {
+                newXRange_plot[0] = x - padding * zoomOutFactor;
+                needsRelayout = true;
+            }
+            if (y + padding > newYRange_plot[1]) {
+                newYRange_plot[1] = y + padding * zoomOutFactor;
+                needsRelayout = true;
+            }
+            if (y - padding < newYRange_plot[0]) {
+                newYRange_plot[0] = y - padding * zoomOutFactor;
+                needsRelayout = true;
+            }
+
+            const minViewSpan = 50;
+            if (newXRange_plot[1] - newXRange_plot[0] < minViewSpan) {
+                const midX = (newXRange_plot[0] + newXRange_plot[1]) / 2;
+                newXRange_plot[0] = midX - minViewSpan / 2;
+                newXRange_plot[1] = midX + minViewSpan / 2;
+                needsRelayout = true;
+            }
+            if (newYRange_plot[1] - newYRange_plot[0] < minViewSpan) {
+                const midY = (newYRange_plot[0] + newYRange_plot[1]) / 2;
+                newYRange_plot[0] = midY - minViewSpan / 2;
+                newYRange_plot[1] = midY + minViewSpan / 2;
+                needsRelayout = true;
+            }
+
+            if (needsRelayout) {
+                Plotly.relayout('main-graph', {
+                    'xaxis.range': newXRange_plot,
+                    'yaxis.range': newYRange_plot,
+                    'yaxis.scaleanchor': "x",
+                    'yaxis.scaleratio': 1
+                }).catch(e => console.error("Plotly relayout error:", e));
+            }
+        }
     }
-
-    droneAnimationFrameId = requestAnimationFrame(updateDronePosition); //
+    droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
 }
 
 async function updateAltitude(timestamp) {
@@ -970,61 +1171,80 @@ async function updateAltitude(timestamp) {
         return;
     }
 
+    if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding) {
+        if (Math.abs(altitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.5 && !isAltitudeChanging) {
+        }
+    }
+
     if (isSquareModeActive) {
         if (!droneReachedTargetAltitudeForSquarePath && !isAltitudeChanging && !isLanded) {
             droneReachedTargetAltitudeForSquarePath = true;
             console.log("Initial target altitude reached for Square Mode path start.");
         }
-        if (droneReachedTargetAltitudeForSquarePath && !isFlyingSquarePath) {
-            isFlyingSquarePath = true;
-            console.log("Square path flight started.");
+    }
+
+    if (isCircleModeActive) {
+        if (!droneReachedTargetAltitudeForCirclePath && !isAltitudeChanging && !isLanded) {
+            droneReachedTargetAltitudeForCirclePath = true;
+            console.log("Initial target altitude reached for Circle Mode. Approach/path will start if conditions met.");
         }
     }
 
     const deltaTime = (timestamp - lastAltitudeUpdate) / 1000.0;
     if (deltaTime > 0 && deltaTime < 0.5) {
         time += deltaTime;
-
         const diff = targetAltitude - controlAltitude;
+
         if (Math.abs(diff) > 0.1) {
             if (!isAltitudeChanging) isAltitudeChanging = true;
             const factor = Math.max(0.1, Math.min(1, Math.abs(diff) / 50));
             const dir = Math.sign(diff);
             const rate = dir > 0 ? BASE_ASCENT_RATE * factor : BASE_DESCENT_RATE * factor;
             const step = dir * rate * deltaTime;
-            controlAltitude += Math.abs(step) >= Math.abs(diff) ? diff : step;
-            if (Math.abs(diff) <= Math.abs(step)) {
+
+            if (Math.abs(step) >= Math.abs(diff)) {
+                controlAltitude = targetAltitude;
                 isAltitudeChanging = false;
                 if (targetAltitude <= 0.1 && !isLanded) {
                     isLanded = true;
                     console.log("Дрон приземлился.");
                 }
+                if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
+                    Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
+                    console.log("Target altitude for path resumption reached.");
+                }
+            } else {
+                controlAltitude += step;
             }
         } else if (isAltitudeChanging) {
             controlAltitude = targetAltitude;
             isAltitudeChanging = false;
             if (targetAltitude <= 0.1 && !isLanded) {
                 isLanded = true;
-                console.log("Дрон приземлился.");
+                console.log("Дрон приземлился (snapped).");
+            }
+            if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
+                Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
+                console.log("Target altitude for path resumption reached (snapped).");
             }
         }
 
         if (controlAltitude < 0) controlAltitude = 0;
         if (isLanded) controlAltitude = 0;
 
-        if (!isAltitudeChanging && !isLanded) {
+        if (!isAltitudeChanging && !isLanded && !landingSequenceActiveInMode && !isReturningToPathAfterLandingCancel) {
             const minAlt = 5, maxAlt = 1000;
             const minAmp = 0.3, maxAmp = 3;
-            const h = Math.min(Math.max(controlAltitude, minAlt), maxAlt);
-            const noiseAmp = minAmp + (maxAmp - minAmp) * (h - minAlt) / (maxAlt - minAlt);
-
+            const h_osc = Math.min(Math.max(controlAltitude, minAlt), maxAlt);
+            const noiseAmp = minAmp + (maxAmp - minAmp) * (h_osc - minAlt) / (maxAlt - minAlt);
             const rawNoise = (Math.random() * 2 - 1) * noiseAmp;
             smoothedOscillation = smoothedOscillation * (1 - OSCILLATION_SMOOTHING_FACTOR)
                 + rawNoise * OSCILLATION_SMOOTHING_FACTOR;
+        } else {
+            smoothedOscillation = 0;
         }
 
         altitude = controlAltitude + (isLanded ? 0 : smoothedOscillation);
-
         const absoluteAlt = altitude + heightAboveSeaLevel;
         const tempFluct = (Math.random() - 0.5) * 0.2;
         const pressFluct = (Math.random() - 0.5) * 0.1;
@@ -1035,39 +1255,45 @@ async function updateAltitude(timestamp) {
         );
         const pressure = pressureBase / 100 + pressFluct;
 
-        const t = parseFloat(time.toFixed(1));
-        altitudeData.x.push(t);
+        const t_graph = parseFloat(time.toFixed(1));
+        altitudeData.x.push(t_graph);
         altitudeData.y.push(parseFloat(altitude.toFixed(2)));
-        temperatureData.x.push(t);
+        temperatureData.x.push(t_graph);
         temperatureData.y.push(parseFloat(temperature.toFixed(2)));
-        pressureData.x.push(t);
+        pressureData.x.push(t_graph);
         pressureData.y.push(parseFloat(pressure.toFixed(2)));
 
         if (timestamp - lastPlotlyUpdateTimeGraphs > PLOTLY_UPDATE_INTERVAL_TIME) {
             lastPlotlyUpdateTimeGraphs = timestamp;
             const i = altitudeData.x.length - 1;
-            Plotly.extendTraces('altitude-graph', {x: [[altitudeData.x[i]]], y: [[altitudeData.y[i]]]}, [0]);
-            Plotly.extendTraces('temperature-graph', {x: [[temperatureData.x[i]]], y: [[temperatureData.y[i]]]}, [0]);
-            Plotly.extendTraces('pressure-graph', {x: [[pressureData.x[i]]], y: [[pressureData.y[i]]]}, [0]);
+            if (i >= 0) {
+                Plotly.extendTraces('altitude-graph', {x: [[altitudeData.x[i]]], y: [[altitudeData.y[i]]]}, [0]);
+                Plotly.extendTraces('temperature-graph', {
+                    x: [[temperatureData.x[i]]],
+                    y: [[temperatureData.y[i]]]
+                }, [0]);
+                Plotly.extendTraces('pressure-graph', {x: [[pressureData.x[i]]], y: [[pressureData.y[i]]]}, [0]);
+            }
 
-            const gd = document.getElementById('altitude-graph');
-            if (gd && gd.layout) {
-                const range = gd.layout.xaxis.range || [0, GRAPH_WINDOW_SIZE];
-                const lastT = altitudeData.x[i];
-                if (lastT > range[1]) {
-                    const newR = [lastT - GRAPH_WINDOW_SIZE, lastT];
-                    await Plotly.relayout('altitude-graph', {'xaxis.range': newR});
-                    await Plotly.relayout('temperature-graph', {'xaxis.range': newR});
-                    await Plotly.relayout('pressure-graph', {'xaxis.range': newR});
-                } else if (range[0] !== 0 && lastT <= GRAPH_WINDOW_SIZE) {
-                    const init = [0, GRAPH_WINDOW_SIZE];
-                    await Plotly.relayout('altitude-graph', {'xaxis.range': init});
-                    await Plotly.relayout('temperature-graph', {'xaxis.range': init});
-                    await Plotly.relayout('pressure-graph', {'xaxis.range': init});
+            const gd_alt_div = document.getElementById('altitude-graph');
+            if (gd_alt_div && gd_alt_div.layout && gd_alt_div.layout.xaxis) {
+                const current_alt_layout = gd_alt_div.layout;
+                const range_alt = current_alt_layout.xaxis.range || [0, GRAPH_WINDOW_SIZE];
+                const lastT_alt = i >= 0 ? altitudeData.x[i] : 0;
+
+                if (lastT_alt > range_alt[1]) {
+                    const newR_alt = [lastT_alt - GRAPH_WINDOW_SIZE + PLOTLY_UPDATE_INTERVAL_TIME / 1000, lastT_alt + PLOTLY_UPDATE_INTERVAL_TIME / 1000];
+                    await Plotly.relayout('altitude-graph', {'xaxis.range': newR_alt});
+                    await Plotly.relayout('temperature-graph', {'xaxis.range': newR_alt});
+                    await Plotly.relayout('pressure-graph', {'xaxis.range': newR_alt});
+                } else if (range_alt[0] !== 0 && lastT_alt <= GRAPH_WINDOW_SIZE && lastT_alt > 0) {
+                    const init_alt = [0, GRAPH_WINDOW_SIZE];
+                    await Plotly.relayout('altitude-graph', {'xaxis.range': init_alt});
+                    await Plotly.relayout('temperature-graph', {'xaxis.range': init_alt});
+                    await Plotly.relayout('pressure-graph', {'xaxis.range': init_alt});
                 }
             }
         }
-
         lastAltitudeUpdate = timestamp;
     }
 
@@ -1076,54 +1302,75 @@ async function updateAltitude(timestamp) {
         : null;
 }
 
-
 // Функции управления высотой
-// Увеличение высоты
 function increaseAltitude() {
     if (!isFlying) return;
 
     if (isLanded) {
-        console.log("Increase altitude pressed while landed. Initiating takeoff.");
-        toggleLandTakeoff();
-        return;
+        if (isSquareModeActive || isCircleModeActive) {
+            console.log("Altitude Up (E) pressed while landed in Special Mode. Small liftoff, path continues.");
+            isLanded = false;
+            isAltitudeChanging = true;
+
+            const currentActualAltitudeForIncrement = 0;
+            const step = Math.max(1, Math.round(currentActualAltitudeForIncrement / 100));
+            const increment = Math.min(50, step);
+
+            targetAltitude = (altitude > 0.1 ? altitude : 0) + increment;
+            console.log(`E-Takeoff (Special Mode): New Target: ${targetAltitude.toFixed(1)}. Path should continue.`);
+
+            if (altitudeAnimationFrameId === null && isFlying) {
+                lastAltitudeUpdate = performance.now();
+                altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+            }
+            return;
+        } else {
+            console.log("Increase altitude (E) pressed while landed (Standard Mode or not in special mode). Initiating standard takeoff procedure.");
+            _initiateTakeoff(true);
+            return;
+        }
     }
 
     const currentTarget = isAltitudeChanging ? targetAltitude : altitude;
-
-    const step = Math.max(1, Math.round(currentTarget / 100)); // Шаг = 1 метр на каждые 100м высоты (минимум 1)
-    const altitudeIncrement = Math.min(50, step); // Ограничиваем максимальный шаг (например, 50м)
-    targetAltitude = Math.min(currentTarget + altitudeIncrement, 10000); // Увеличиваем цель на рассчитанный шаг
-    console.log(`Increasing altitude. Current: ${altitude.toFixed(1)}, Current Target: ${currentTarget.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}, Step: ${altitudeIncrement}`);
-
+    const step = Math.max(1, Math.round(currentTarget / 100));
+    const altitudeIncrement = Math.min(50, step);
+    targetAltitude = Math.min(currentTarget + altitudeIncrement, 10000);
+    console.log(`Increasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
     if (altitudeAnimationFrameId === null && isFlying) {
-        console.log("Restarting altitude update loop from increaseAltitude");
         lastAltitudeUpdate = performance.now();
         altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
     }
 }
 
-// Уменьшение высоты
 function decreaseAltitude() {
     if (!isFlying) return;
-
-    if (isLanded) {
-        console.log("Cannot decrease altitude: Already landed.");
+    if (isLanded && targetAltitude <= 0.1) {
+        console.log("Cannot decrease altitude: Already landed and target is effectively zero.");
         return;
     }
 
-    const currentTarget = isAltitudeChanging ? targetAltitude : altitude;
-
-    const step = Math.max(1, Math.round(currentTarget / 100));
+    const currentActualAltitude = altitude;
+    const currentTargetVal = isAltitudeChanging ? targetAltitude : altitude;
+    const step = Math.max(1, Math.round(currentTargetVal / 100));
     const altitudeDecrement = Math.min(50, step);
-    targetAltitude = Math.max(currentTarget - altitudeDecrement, 0);
-    console.log(`Decreasing altitude. Current: ${altitude.toFixed(1)}, Current Target: ${currentTarget.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}, Step: ${altitudeDecrement}`);
+    const newCalculatedTargetAltitude = Math.max(currentTargetVal - altitudeDecrement, 0);
 
+    if (newCalculatedTargetAltitude <= 0.1 && currentTargetVal > 0.1 && !isLanded) {
+        lastAltitudeBeforeLanding = currentActualAltitude;
+        console.log(`Q-Descent leading to land: Storing lastAltitudeBeforeLanding = ${lastAltitudeBeforeLanding.toFixed(1)}`);
+    }
+
+    targetAltitude = newCalculatedTargetAltitude;
+    console.log(`Decreasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
+    if (targetAltitude <= 0.1 && !isLanded) {
+        console.log("Targeting ground with decreaseAltitude button. This will be a manual landing.");
+    }
+
     if (altitudeAnimationFrameId === null && isFlying) {
-        console.log("Restarting altitude update loop from decreaseAltitude");
         lastAltitudeUpdate = performance.now();
         altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
     }
@@ -1136,63 +1383,137 @@ function toggleLandTakeoff() {
         return;
     }
 
-    if (!isLanded && targetAltitude === 0 && isAltitudeChanging) {
-        targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
-        isAltitudeChanging = true;
-        if (isSquareModeActive) {
-            droneReachedTargetAltitudeForSquarePath = false;
-            isFlyingSquarePath = false;
-            currentSquarePathIndex = 0;
-        }
-        if (altitudeAnimationFrameId === null) {
-            lastAltitudeUpdate = performance.now();
-            altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
-        }
-        return;
-    }
-
-    if (isLanded) {
-        targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
-        isLanded = false;
-        isAltitudeChanging = true;
-
-        if (isSquareModeActive) {
-            droneReachedTargetAltitudeForSquarePath = false;
-            isFlyingSquarePath = false;
-            currentSquarePathIndex = 0;
-        }
-
-        if (altitudeAnimationFrameId === null) {
-            lastAltitudeUpdate = performance.now();
-            altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
-        }
-        if (droneAnimationFrameId === null) {
-            lastPositionUpdate = performance.now();
-            droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
-        }
-
-    } else {
-        if (altitude > 0.1) {
+    if (isSquareModeActive || isCircleModeActive) {
+        if (landingSequenceActiveInMode) {
+            console.log("Special Mode: Landing cancel requested. Returning to previous path and altitude.");
+            if (dronePathBeforeLanding) {
+                targetAltitude = dronePathBeforeLanding.altitudeBeforeLanding;
+                isAltitudeChanging = true;
+                isReturningToPathAfterLandingCancel = true;
+                landingSequenceActiveInMode = false;
+                isPathPausedForLanding = true;
+                isLanded = false;
+            } else {
+                console.warn("Special Mode: Landing cancel pressed, but no previous path data. Taking off to default alt.");
+                _initiateTakeoff(false);
+            }
+        } else if (!isLanded) {
+            console.log("Special Mode: Landing initiated. Storing current state and returning to origin (0,0).");
+            dronePathBeforeLanding = {
+                x: x, y: y, altitudeBeforeLanding: altitude, modeState: {}
+            };
+            if (isSquareModeActive) {
+                dronePathBeforeLanding.modeState = { type: 'square', index: currentSquarePathIndex, isFlying: isFlyingSquarePath, reachedAlt: droneReachedTargetAltitudeForSquarePath };
+            } else if (isCircleModeActive) {
+                dronePathBeforeLanding.modeState = { type: 'circle', angle: currentCircleAngle, isFlying: isFlyingCirclePath, reachedAlt: droneReachedTargetAltitudeForCirclePath, isApproaching: isApproachingCircleStart, approachTarget: currentCircleApproachTarget };
+            }
             lastAltitudeBeforeLanding = altitude;
+            targetAltitude = 0;
+            isAltitudeChanging = true;
+            landingSequenceActiveInMode = true;
+            isPathPausedForLanding = true;
+            isReturningToPathAfterLandingCancel = false;
         } else {
-            lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
-        }
-        targetAltitude = 0;
-        isAltitudeChanging = true;
 
-        if (isSquareModeActive) {
-            droneReachedTargetAltitudeForSquarePath = false;
-            isFlyingSquarePath = false;
-            currentSquarePathIndex = 0;
+            if (dronePathBeforeLanding) {
+                console.log("Special Mode: Takeoff by L after SPECIAL L-landing (drone at 0,0). Path restart from origin.");
+                _initiateTakeoff(false);
+                dronePathBeforeLanding = null;
+            } else {
+                console.log("Special Mode: Takeoff by L (after Q-land or initial on path). Target: lastAltitudeBeforeLanding.");
+
+                let takeoffAltitude;
+                if (lastAltitudeBeforeLanding > 1) {
+                    takeoffAltitude = lastAltitudeBeforeLanding;
+                    console.log(`L-Takeoff (Q-land/initial): Target altitude set to last remembered: ${takeoffAltitude.toFixed(1)}`);
+                } else {
+                    takeoffAltitude = INITIAL_TAKEOFF_ALTITUDE;
+                    console.log(`L-Takeoff (Q-land/initial): lastAltitudeBeforeLanding was <=1 or uninitialized, using INITIAL_TAKEOFF_ALTITUDE: ${takeoffAltitude.toFixed(1)}`);
+                }
+
+                targetAltitude = takeoffAltitude;
+                isLanded = false;
+                isAltitudeChanging = true;
+                landingSequenceActiveInMode = false;
+                isReturningToPathAfterLandingCancel = false;
+                isPathPausedForLanding = false;
+
+                if (isSquareModeActive) {
+                    isFlyingSquarePath = false;
+                    droneReachedTargetAltitudeForSquarePath = false;
+                }
+                if (isCircleModeActive) {
+                    isFlyingCirclePath = false;
+                    droneReachedTargetAltitudeForCirclePath = false;
+                }
+            }
         }
 
         if (altitudeAnimationFrameId === null && isFlying) {
             lastAltitudeUpdate = performance.now();
             altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
         }
+        if (droneAnimationFrameId === null && isFlying) {
+            lastPositionUpdate = performance.now();
+            droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
+        }
+        return;
     }
+
+    // Стандартный режим
+    if (isLanded) {
+        console.log("Standard Mode: Takeoff initiated.");
+        targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
+        isLanded = false;
+        isAltitudeChanging = true;
+    } else {
+        console.log("Standard Mode: Landing initiated.");
+        if (altitude > 0.1) lastAltitudeBeforeLanding = altitude;
+        else lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
+        targetAltitude = 0;
+        isAltitudeChanging = true;
+    }
+
+    if (altitudeAnimationFrameId === null && isFlying) { lastAltitudeUpdate = performance.now(); altitudeAnimationFrameId = requestAnimationFrame(updateAltitude); }
+    if (droneAnimationFrameId === null && isFlying) { lastPositionUpdate = performance.now(); droneAnimationFrameId = requestAnimationFrame(updateDronePosition); }
 }
 
+function _initiateTakeoff(isResumeFromCurrentPositionInMode) {
+    targetAltitude = appSettings.targetAltitude > INITIAL_TAKEOFF_ALTITUDE / 2 ? appSettings.targetAltitude : INITIAL_TAKEOFF_ALTITUDE;
+    isLanded = false;
+    isAltitudeChanging = true;
+
+    landingSequenceActiveInMode = false;
+    isReturningToPathAfterLandingCancel = false;
+    isPathPausedForLanding = false;
+
+    if (isSquareModeActive) {
+        if (!isResumeFromCurrentPositionInMode) {
+            currentSquarePathIndex = 0;
+        }
+        isFlyingSquarePath = false;
+        droneReachedTargetAltitudeForSquarePath = false;
+    }
+    if (isCircleModeActive) {
+        if (!isResumeFromCurrentPositionInMode) {
+            isApproachingCircleStart = true;
+            currentCircleAngle = 0;
+        } else {
+            isApproachingCircleStart = false;
+        }
+        isFlyingCirclePath = false;
+        droneReachedTargetAltitudeForCirclePath = false;
+    }
+
+    if (altitudeAnimationFrameId === null && isFlying) {
+        lastAltitudeUpdate = performance.now();
+        altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+    }
+    if (droneAnimationFrameId === null && isFlying) {
+        lastPositionUpdate = performance.now();
+        droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
+    }
+}
 
 // Очистка графиков
 function clearGraphs(confirmed = false) {
@@ -1201,44 +1522,47 @@ function clearGraphs(confirmed = false) {
         return;
     }
 
-    // Остановка полета и анимаций
     if (isFlying) {
-        isFlying = false;
+        toggleStartStop();
+    } else {
+        if (altitudeAnimationFrameId !== null) cancelAnimationFrame(altitudeAnimationFrameId);
+        if (droneAnimationFrameId !== null) cancelAnimationFrame(droneAnimationFrameId);
+        altitudeAnimationFrameId = null;
+        droneAnimationFrameId = null;
     }
 
-    // Отменяем анимации
-    if (altitudeAnimationFrameId !== null) cancelAnimationFrame(altitudeAnimationFrameId);
-    if (droneAnimationFrameId !== null) cancelAnimationFrame(droneAnimationFrameId);
-    altitudeAnimationFrameId = null;
-    droneAnimationFrameId = null;
 
     currentSquarePathIndex = 0;
     isFlyingSquarePath = false;
     droneReachedTargetAltitudeForSquarePath = false;
     console.log("Square mode state reset during graph clearing.");
 
-    // Сброс высоты
+    isFlyingCirclePath = false;
+    droneReachedTargetAltitudeForCirclePath = false;
+    currentCircleAngle = 0;
+    isApproachingCircleStart = true;
+    currentCircleApproachTarget = null;
+    console.log("Circle mode flight parameters reset on clear.");
+
+    dronePathBeforeLanding = null;
+    isReturningToPathAfterLandingCancel = false;
+    landingSequenceActiveInMode = false;
+    isPathPausedForLanding = false;
+
     controlAltitude = 0;
     altitude = 0;
     smoothedOscillation = 0;
-
-    // сброс состояния квадрата
-    currentSquarePathIndex = 0;
-    isFlyingSquarePath = false;
-    droneReachedTargetAltitudeForSquarePath = false;
-
-    // Сброс параметров состояния
     x = 0;
     y = 0;
     speedX = 0;
     speedY = 0;
-    altitude = 0;
     targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
-    isLanded = false;
+    isLanded = true;
     lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
     time = 0;
     path = [{x: 0, y: 0}];
     isAltitudeChanging = false;
+
 
     altitudeData.x = [];
     altitudeData.y = [];
@@ -1259,6 +1583,7 @@ function clearGraphs(confirmed = false) {
                 <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
             </svg>`;
         startStopButton.style.backgroundColor = '#28a745';
+        if (isFlying) isFlying = false;
     }
 
     setTimeout(() => {
@@ -1435,10 +1760,10 @@ document.addEventListener('keydown', (event) => {
                 break;
             case 'KeyE':
                 increaseAltitude();
-                break; // Подъем
+                break;
             case 'KeyQ':
                 decreaseAltitude();
-                break; // Снижение
+                break;
         }
     }
 
@@ -1455,6 +1780,15 @@ document.addEventListener('keydown', (event) => {
             event.preventDefault();
             clearGraphs(false);
             break;
+        case 'KeyE':
+            if (isFlying) {
+                increaseAltitude();
+            }
+            break;
+        case 'KeyQ':
+            if (isFlying) {
+                decreaseAltitude();
+            }
     }
 });
 
@@ -1533,6 +1867,15 @@ function updateSettingsFields() {
     hi.value = appSettings.heightAboveSea;
     ta.value = appSettings.targetAltitude;
     updateCalculatedValues(appSettings.heightAboveSea);
+    const circleBtn = modal.querySelector('.shape-btn[data-shape="circle"]');
+    const otherBtns = modal.querySelectorAll('.shape-btn:not([data-shape="circle"])');
+    if (isCircleModeActive) {
+        circleBtn.classList.add('active-flight-mode');
+        otherBtns.forEach(b => b.disabled = true);
+    } else {
+        circleBtn.classList.remove('active-flight-mode');
+        otherBtns.forEach(b => b.disabled = false);
+    }
 
     const sq = modal.querySelector('.shape-btn[data-shape="square"]');
     const others = modal.querySelectorAll('.shape-btn:not([data-shape="square"])');
@@ -1569,9 +1912,11 @@ function setupSettingsInputHandlers() {
     const cancelBtn = modal.querySelector('#cancelSettingsBtn');
     const defBtn = modal.querySelector('.defaults-btn');
     const sqBtn = modal.querySelector('.shape-btn[data-shape="square"]');
+    const circleBtn = modal.querySelector('.shape-btn[data-shape="circle"]');
+    circleBtn.addEventListener('click', handleCircleModeToggle);
 
     hi.addEventListener('input', () => updateCalculatedValues());
-    ta.addEventListener('input', () => {/* изменения сохраняются только по Save */
+    ta.addEventListener('input', () => {
     });
 
     saveBtn.addEventListener('click', () => {
@@ -1606,21 +1951,6 @@ function setupSettingsInputHandlers() {
     updateSettingsFields();
 }
 
-
-function updateAltitudeData() {
-    const absoluteAltitude = heightAboveSeaLevel + altitude;
-    const params = calculateAtmosphericParams();
-
-    if (altitudeData.y.length > 0) {
-        const lastIndex = altitudeData.y.length - 1;
-        temperatureData.y[lastIndex] = parseFloat(params.temperature);
-        pressureData.y[lastIndex] = parseFloat(params.pressure);
-
-        Plotly.restyle('temperature-graph', {y: [temperatureData.y]}, [0]);
-        Plotly.restyle('pressure-graph', {y: [pressureData.y]}, [0]);
-    }
-}
-
 function closeSettingsModal() {
     const modal = document.getElementById('settingsModal');
     if (modal) {
@@ -1636,26 +1966,85 @@ function handleSquareModeToggle() {
     const otherShapeButtons = document.querySelectorAll('.shape-btn:not([data-shape="square"])');
 
     isSquareModeActive = !isSquareModeActive;
-
     if (isSquareModeActive) {
-        squareButton.classList.add('active-flight-mode');
-        squareButton.style.backgroundColor = 'blue';
-        squareButton.style.color = 'white';
+        if (squareButton) {
+            squareButton.classList.add('active-flight-mode');
+        }
         otherShapeButtons.forEach(btn => {
             btn.disabled = true;
             btn.classList.remove('active-flight-mode');
         });
+
+        // Reset square path state
         currentSquarePathIndex = 0;
         isFlyingSquarePath = false;
         droneReachedTargetAltitudeForSquarePath = false;
-        console.log("Square mode activated. Waiting for target altitude.");
+
+        if (isCircleModeActive) {
+            isCircleModeActive = false;
+            const circleBtn = document.querySelector('.shape-btn[data-shape="circle"]');
+            if (circleBtn) circleBtn.classList.remove('active-flight-mode');
+            isApproachingCircleStart = false;
+            isFlyingCirclePath = false;
+            droneReachedTargetAltitudeForCirclePath = false;
+        }
+
+        isPathPausedForLanding = false;
+        landingSequenceActiveInMode = false;
+        isReturningToPathAfterLandingCancel = false;
+        dronePathBeforeLanding = null;
+
+        console.log("Square mode activated. Waiting for flight start and target altitude.");
     } else {
-        squareButton.classList.remove('active-flight-mode');
-        squareButton.style.backgroundColor = '';
-        squareButton.style.color = '';
+        if (squareButton) {
+            squareButton.classList.remove('active-flight-mode');
+
+        }
         otherShapeButtons.forEach(btn => btn.disabled = false);
         isFlyingSquarePath = false;
         console.log("Square mode deactivated.");
     }
+    updateSettingsFields();
 }
 
+function handleCircleModeToggle() {
+    const circleBtn = document.querySelector('.shape-btn[data-shape="circle"]');
+    const otherShapeButtons = document.querySelectorAll('.shape-btn:not([data-shape="circle"])');
+
+    isCircleModeActive = !isCircleModeActive;
+    if (isCircleModeActive) {
+        if (circleBtn) circleBtn.classList.add('active-flight-mode');
+        otherShapeButtons.forEach(b => {
+            b.disabled = true;
+            b.classList.remove('active-flight-mode');
+        });
+
+        isApproachingCircleStart = true;
+        currentCircleApproachTarget = null;
+        isFlyingCirclePath = false;
+        currentCircleAngle = 0;
+        droneReachedTargetAltitudeForCirclePath = false;
+
+        if (isSquareModeActive) {
+            isSquareModeActive = false;
+            const squareBtn = document.querySelector('.shape-btn[data-shape="square"]');
+            if (squareBtn) squareBtn.classList.remove('active-flight-mode');
+            isFlyingSquarePath = false;
+            droneReachedTargetAltitudeForSquarePath = false;
+        }
+
+        isPathPausedForLanding = false;
+        landingSequenceActiveInMode = false;
+        isReturningToPathAfterLandingCancel = false;
+        dronePathBeforeLanding = null;
+
+        console.log("Circle mode activated. Waiting for flight start and target altitude for approach.");
+    } else {
+        if (circleBtn) circleBtn.classList.remove('active-flight-mode');
+        otherShapeButtons.forEach(b => b.disabled = false);
+        isApproachingCircleStart = false;
+        isFlyingCirclePath = false;
+        console.log("Circle mode deactivated.");
+    }
+    updateSettingsFields();
+}
