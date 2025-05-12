@@ -26,7 +26,8 @@ const R = 8.3144598;  // Универсальная газовая постоя�
 let appSettings = {
     heightAboveSea: 0,
     targetAltitude: INITIAL_TAKEOFF_ALTITUDE,
-    lastUpdated: null
+    lastUpdated: null,
+    voronoiPoints: [], // Crucial: Initialize for Voronoi points
 };
 
 // Глобальные переменные для данных графиков
@@ -77,6 +78,86 @@ transition: opacity 0.2s ease;
     .plot-container:hover .modebar {
         opacity: 1;
 }
+    /* Added styles for settings point input */
+    .point-input-section {
+        border: 1px solid #ccc; /* Use theme-appropriate color later if needed */
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 4px;
+        background-color: rgba(255, 255, 255, 0.05); /* Slight background for dark themes */
+    }
+    .point-input-section h5 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 1em;
+        color: inherit; /* Inherit text color from theme */
+    }
+    .point-input-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .point-input-controls input[type="number"] {
+        flex-grow: 1;
+        width: 70px; /* Adjust as needed */
+        padding: 8px;
+        border: 1px solid #555; /* Theme-aware border */
+        background-color: #333; /* Theme-aware background */
+        color: #fff; /* Theme-aware text color */
+        border-radius: 4px;
+    }
+    .point-input-controls button { /* Style for add button */
+        padding: 8px 12px;
+        /* Assuming .button-primary styles are defined elsewhere or add them */
+    }
+    .points-list {
+        max-height: 100px;
+        overflow-y: auto;
+        border: 1px solid #444; /* Theme-aware border */
+        padding: 8px;
+        margin-bottom: 10px;
+        font-size: 0.9em;
+        background-color: rgba(0,0,0,0.1); /* Slight inner background */
+        border-radius: 4px;
+    }
+    .points-list div {
+        padding: 4px 2px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #444; /* Separator for points */
+    }
+    .points-list div:last-child {
+        border-bottom: none;
+    }
+    .points-list div button { /* Style for remove button */
+        margin-left: 10px;
+        padding: 2px 8px;
+        font-size: 0.8em;
+        background-color: #dc3545; /* Red for delete */
+        border: none;
+        color: white;
+        cursor: pointer;
+        border-radius: 3px;
+    }
+    .point-input-section > button.button-danger { /* Style for "Clear all points" */
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+    }
+    /* Style for active flight mode button */
+    .shape-btn.active-flight-mode {
+        background-color: #0d6efd; /* Example: Bootstrap primary blue */
+        color: white;
+        border: 1px solid #0a58ca;
+    }
+    .shape-btn:disabled {
+        background-color: #6c757d; /* Example: Bootstrap secondary/disabled grey */
+        color: #ccc;
+        cursor: not-allowed;
+        opacity: 0.65;
+    }
+
 `;
 document.head.appendChild(style);
 
@@ -120,6 +201,24 @@ let dronePathBeforeLanding = null; // Сохраняет состояние др
 let isReturningToPathAfterLandingCancel = false; // True если посадка была отменена в специальном режиме и беспилотник возвращается на прежнюю траекторию полета
 let landingSequenceActiveInMode = false; // True если последовательность посадки (полет до 0,0 и снижение) активна в режиме квадрата или круга
 let isPathPausedForLanding = false; // True если необходимо приостановить выполнение обычной траектории (движение по квадрату/кругу) (например, во время приземления).
+
+let isVoronoiModeActive = false;
+let voronoiPathCoordinates = [];
+let currentVoronoiPathIndex = 0;
+let isFlyingVoronoiPath = false;
+const VORONOI_PATH_SPEED = 10;
+let droneReachedTargetAltitudeForVoronoiPath = false;
+
+let isCellularDecompositionModeActive = false;
+let cellularEndPoint = {x: null, y: null};
+let cellularObstacles = [];
+let cellularPathCoordinates = []; // Путь к концу
+let cellularReturnPathCoordinates = []; // Путь назад
+let currentCellularPathIndex = 0;
+let isFlyingCellularPath = false;
+let droneReachedTargetAltitudeForCellularPath = false;
+let isReturningToStartCellular = false; // Флаг
+const CELL_OBSTACLE_SIZE = 5; // 5x5 метров
 
 // Карточка дрона
 function createDroneCard(drone) {
@@ -622,7 +721,6 @@ document.addEventListener('DOMContentLoaded', () => {
 let altitudeAnimationFrameId = null;
 let droneAnimationFrameId = null;
 
-// Переключение старт/стоп полета
 function toggleStartStop() {
     const startStopButton = document.getElementById('startStopButton');
     if (!startStopButton) return;
@@ -633,7 +731,7 @@ function toggleStartStop() {
         if (altitude <= 0.1) {
             if (isLanded) {
                 targetAltitude = appSettings.targetAltitude;
-                console.log(`Взлет на ${targetAltitude.toFixed(1)} м`);
+                console.log(`Взлет на ${targetAltitude.toFixed(1)} м (с ранее приземленного состояния)`);
                 isLanded = false;
                 isAltitudeChanging = true;
 
@@ -661,15 +759,46 @@ function toggleStartStop() {
                         y: 0
                     }];
                 }
+                if (isVoronoiModeActive) {
+                    currentVoronoiPathIndex = 0;
+                    isFlyingVoronoiPath = false;
+                    droneReachedTargetAltitudeForVoronoiPath = false;
+                    x = 0;
+                    y = 0;
+                    voronoiPathCoordinates = JSON.parse(JSON.stringify(appSettings.voronoiPoints));
+                    if (path.length === 0 || path[path.length - 1].x !== 0 || path[path.length - 1].y !== 0) path = [{
+                        x: 0,
+                        y: 0
+                    }];
+                }
+                if (isCellularDecompositionModeActive) {
+                    currentCellularPathIndex = 0;
+                    isFlyingCellularPath = false;
+                    droneReachedTargetAltitudeForCellularPath = false;
+                    isReturningToStartCellular = false;
+                    cellularPathCoordinates = [];
+                    cellularReturnPathCoordinates = [];
+                    x = 0;
+                    y = 0;
+                    if (path.length === 0 || path[path.length - 1].x !== 0 || path[path.length - 1].y !== 0) path = [{
+                        x: 0,
+                        y: 0
+                    }];
+
+                    if (!cellularEndPoint || typeof cellularEndPoint.x !== 'number') {
+                    }
+                    initMainGraph(true);
+                }
+
                 isPathPausedForLanding = false;
                 landingSequenceActiveInMode = false;
                 isReturningToPathAfterLandingCancel = false;
                 dronePathBeforeLanding = null;
 
             } else {
-                console.log(`Новый старт с земли, взлет на ${INITIAL_TAKEOFF_ALTITUDE} м`);
+                console.log(`Новый старт с земли, взлет на ${appSettings.targetAltitude || INITIAL_TAKEOFF_ALTITUDE} м`);
                 targetAltitude = appSettings.targetAltitude || INITIAL_TAKEOFF_ALTITUDE;
-                lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
+                lastAltitudeBeforeLanding = targetAltitude;
                 altitude = 0;
                 time = 0;
                 x = 0;
@@ -683,6 +812,7 @@ function toggleStartStop() {
                 temperatureData.y = [];
                 pressureData.x = [];
                 pressureData.y = [];
+
                 initMainGraph(true);
                 initAltitudeGraph(true);
                 initTemperatureGraph(true);
@@ -692,6 +822,7 @@ function toggleStartStop() {
                 Plotly.relayout('altitude-graph', timeGraphLayoutUpdate).catch(e => console.error(e));
                 Plotly.relayout('temperature-graph', timeGraphLayoutUpdate).catch(e => console.error(e));
                 Plotly.relayout('pressure-graph', timeGraphLayoutUpdate).catch(e => console.error(e));
+
                 isAltitudeChanging = true;
                 isLanded = false;
 
@@ -706,6 +837,23 @@ function toggleStartStop() {
                     currentCircleAngle = 0;
                     droneReachedTargetAltitudeForCirclePath = false;
                 }
+                if (isVoronoiModeActive) {
+                    currentVoronoiPathIndex = 0;
+                    isFlyingVoronoiPath = false;
+                    droneReachedTargetAltitudeForVoronoiPath = false;
+                    voronoiPathCoordinates = JSON.parse(JSON.stringify(appSettings.voronoiPoints));
+                }
+
+                if (isCellularDecompositionModeActive) {
+                    currentCellularPathIndex = 0;
+                    isFlyingCellularPath = false;
+                    droneReachedTargetAltitudeForCellularPath = false;
+                    isReturningToStartCellular = false;
+                    cellularPathCoordinates = [];
+                    cellularReturnPathCoordinates = [];
+                    if (!cellularEndPoint || typeof cellularEndPoint.x !== 'number') {
+                    }
+                }
                 isPathPausedForLanding = false;
                 landingSequenceActiveInMode = false;
                 isReturningToPathAfterLandingCancel = false;
@@ -713,8 +861,8 @@ function toggleStartStop() {
             }
         } else {
             console.log(`Возобновление полета в воздухе на высоте ${altitude.toFixed(1)} м`);
-            targetAltitude = altitude;
-            isAltitudeChanging = false;
+            targetAltitude = appSettings.targetAltitude;
+            isAltitudeChanging = (Math.abs(altitude - targetAltitude) > 0.5);
             isLanded = false;
         }
 
@@ -752,11 +900,6 @@ function toggleStartStop() {
         speedX = 0;
         speedY = 0;
         isAltitudeChanging = false;
-
-        isPathPausedForLanding = false;
-        landingSequenceActiveInMode = false;
-        isReturningToPathAfterLandingCancel = false;
-        dronePathBeforeLanding = null;
     }
 }
 
@@ -809,7 +952,7 @@ function initOrUpdateGraph(graphId, data, layoutConfig, baseLayout = {}) {
     };
 
     const finalLayout = mergeLayouts(JSON.parse(JSON.stringify(defaultLayout)), layoutConfig);
-    Plotly.react(graphId, data, finalLayout, plotlyConfig).catch(e => console.error(`Plotly error (${graphId}):`, e));
+    Plotly.react(graphId, data, finalLayout, plotlyConfig).catch(e => console.error(`Ошибка (${graphId}):`, e));
 }
 
 
@@ -863,6 +1006,7 @@ function initMainGraph(reset = false) {
     const isDark = document.body.classList.contains('dark-theme');
     const gridColor = isDark ? '#555' : '#ccc';
     const zeroLineColor = isDark ? '#888' : '#aaa';
+
     const layoutConfig = {
         title: {text: 'График местоположения'},
         xaxis: {
@@ -888,9 +1032,8 @@ function initMainGraph(reset = false) {
         dragmode: 'zoom'
     };
 
-    const currentX = reset || !path || path.length === 0 ? 0 : path[path.length - 1].x;
-    const currentY = reset || !path || path.length === 0 ? 0 : path[path.length - 1].y;
-
+    const currentXVal = reset || !path || path.length === 0 ? 0 : path[path.length - 1].x;
+    const currentYVal = reset || !path || path.length === 0 ? 0 : path[path.length - 1].y;
     const startPointX = (reset || !path || path.length === 0) ? 0 : path[0].x;
     const startPointY = (reset || !path || path.length === 0) ? 0 : path[0].y;
 
@@ -900,11 +1043,7 @@ function initMainGraph(reset = false) {
             y: [startPointY],
             type: 'scattergl',
             mode: 'markers',
-            marker: {
-                color: '#198754',
-                size: 10,
-                symbol: 'circle'
-            },
+            marker: {color: '#198754', size: 10, symbol: 'circle'},
             name: 'Start Point'
         },
         {
@@ -912,28 +1051,91 @@ function initMainGraph(reset = false) {
             y: reset ? [] : (path ? path.map(p => p.y) : []),
             type: 'scattergl',
             mode: 'lines',
-            line: {
-                color: '#0d6efd',
-                width: 1,
-                shape: 'spline',
-                smoothing: 0.5
-            },
+            line: {color: '#0d6efd', width: 1, shape: 'spline', smoothing: 0.5},
             name: 'Path Line'
         },
         {
-            x: [currentX],
-            y: [currentY],
+            x: [currentXVal],
+            y: [currentYVal],
             type: 'scattergl',
             mode: 'markers',
-            marker: {
-                color: '#198754',
-                size: 10,
-                symbol: 'circle'
-            },
+            marker: {color: '#198754', size: 10, symbol: 'circle'},
             name: 'Current Position'
         }
     ];
+
+    if (isCellularDecompositionModeActive) {
+        if (cellularEndPoint && typeof cellularEndPoint.x === 'number') {
+            data.push({
+                x: [cellularEndPoint.x],
+                y: [cellularEndPoint.y],
+                type: 'scattergl',
+                mode: 'markers',
+                marker: {color: 'red', size: 12, symbol: 'circle-open-dot'},
+                name: 'Cellular End Point'
+            });
+        }
+
+        cellularObstacles.forEach(obs => {
+            layoutConfig.shapes.push({
+                type: 'rect',
+                x0: obs.x,
+                y0: obs.y - obs.height,
+                x1: obs.x + obs.width,
+                y1: obs.y,
+                line: {
+                    color: 'rgba(128, 0, 128, 1)',
+                    width: 2
+                },
+                fillcolor: 'rgba(128, 0, 128, 0.3)',
+                layer: 'below'
+            });
+        });
+        if (cellularPathCoordinates.length > 0) {
+            data.push({
+                x: cellularPathCoordinates.map(p => p.x),
+                y: cellularPathCoordinates.map(p => p.y),
+                type: 'scattergl',
+                mode: 'lines',
+                line: {color: 'orange', width: 2, dash: 'dot'},
+                name: 'Cellular Calculated Path'
+            });
+        }
+    }
+
+
     initOrUpdateGraph('main-graph', data, layoutConfig);
+
+    if (isCellularDecompositionModeActive && cellularEndPoint && typeof cellularEndPoint.x === 'number') {
+        const allX = [0, cellularEndPoint.x, ...cellularObstacles.map(obs => [obs.x, obs.x + obs.width]).flat()];
+        const allY = [0, cellularEndPoint.y, ...cellularObstacles.map(obs => [obs.y - obs.height, obs.y]).flat()];
+
+        const minX = Math.min(...allX) - 10;
+        const maxX = Math.max(...allX) + 10;
+        const minY = Math.min(...allY) - 10;
+        const maxY = Math.max(...allY) + 10;
+
+        const xRange = [minX, maxX];
+        const yRange = [minY, maxY];
+
+        const xSpan = xRange[1] - xRange[0];
+        const ySpan = yRange[1] - yRange[0];
+
+        if (xSpan > ySpan) {
+            const diff = xSpan - ySpan;
+            yRange[0] -= diff / 2;
+            yRange[1] += diff / 2;
+        } else {
+            const diff = ySpan - xSpan;
+            xRange[0] -= diff / 2;
+            xRange[1] += diff / 2;
+        }
+
+        Plotly.relayout('main-graph', {
+            'xaxis.range': xRange,
+            'yaxis.range': yRange
+        }).catch(e => console.error("Ошибка для клеток:", e));
+    }
 }
 
 // Обновление темы для всех графиков
@@ -964,7 +1166,6 @@ function updateDronePosition(timestamp) {
         return;
     }
 
-    // Движение при специальных состояниях (посадка, возврат на путь)
     if (landingSequenceActiveInMode && !isReturningToPathAfterLandingCancel) {
         const targetX_land = 0, targetY_land = 0;
         const dX_land = targetX_land - newX;
@@ -972,7 +1173,6 @@ function updateDronePosition(timestamp) {
         const dist_land = Math.hypot(dX_land, dY_land);
         const speed_land = SQUARE_PATH_SPEED;
         const step_land = speed_land * effectiveDeltaTime;
-
         if (dist_land <= step_land) {
             newX = targetX_land;
             newY = targetY_land;
@@ -989,25 +1189,40 @@ function updateDronePosition(timestamp) {
             const dist_return = Math.hypot(dX_return, dY_return);
             const speed_return = SQUARE_PATH_SPEED;
             const step_return = speed_return * effectiveDeltaTime;
-
             if (dist_return <= step_return) {
                 newX = targetX_return;
                 newY = targetY_return;
                 if (Math.abs(altitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.5 && !isAltitudeChanging) {
-                    console.log("Position and altitude restored after landing cancellation. Resuming path.");
                     isReturningToPathAfterLandingCancel = false;
                     isPathPausedForLanding = false;
-
-                    if (dronePathBeforeLanding.modeState.type === 'square') {
-                        currentSquarePathIndex = dronePathBeforeLanding.modeState.index;
-                        droneReachedTargetAltitudeForSquarePath = dronePathBeforeLanding.modeState.reachedAlt;
-                        isFlyingSquarePath = dronePathBeforeLanding.modeState.isFlying;
-                    } else if (dronePathBeforeLanding.modeState.type === 'circle') {
-                        currentCircleAngle = dronePathBeforeLanding.modeState.angle;
-                        droneReachedTargetAltitudeForCirclePath = dronePathBeforeLanding.modeState.reachedAlt;
-                        isApproachingCircleStart = dronePathBeforeLanding.modeState.isApproaching;
-                        currentCircleApproachTarget = dronePathBeforeLanding.modeState.approachTarget;
-                        isFlyingCirclePath = dronePathBeforeLanding.modeState.isFlying;
+                    const modeState = dronePathBeforeLanding.modeState;
+                    if (modeState) {
+                        if (modeState.type === 'square') {
+                            currentSquarePathIndex = modeState.index;
+                            droneReachedTargetAltitudeForSquarePath = modeState.reachedAlt;
+                            isFlyingSquarePath = modeState.isFlying;
+                        } else if (modeState.type === 'circle') {
+                            currentCircleAngle = modeState.angle;
+                            droneReachedTargetAltitudeForCirclePath = modeState.reachedAlt;
+                            isApproachingCircleStart = modeState.isApproaching;
+                            currentCircleApproachTarget = modeState.approachTarget;
+                            isFlyingCirclePath = modeState.isFlying;
+                        } else if (modeState.type === 'voronoi') {
+                            currentVoronoiPathIndex = modeState.index;
+                            droneReachedTargetAltitudeForVoronoiPath = modeState.reachedAlt;
+                            isFlyingVoronoiPath = modeState.isFlying;
+                            voronoiPathCoordinates = JSON.parse(JSON.stringify(modeState.coordinates));
+                        } else if (modeState.type === 'cells') {
+                            cellularPathCoordinates = JSON.parse(JSON.stringify(modeState.path));
+                            cellularReturnPathCoordinates = JSON.parse(JSON.stringify(modeState.returnPath));
+                            currentCellularPathIndex = modeState.index;
+                            isReturningToStartCellular = modeState.isReturning;
+                            droneReachedTargetAltitudeForCellularPath = modeState.reachedAlt;
+                            isFlyingCellularPath = modeState.isFlying;
+                            cellularEndPoint = JSON.parse(JSON.stringify(modeState.endPoint));
+                            cellularObstacles = JSON.parse(JSON.stringify(modeState.obstacles));
+                            initMainGraph(false);
+                        }
                     }
                     dronePathBeforeLanding = null;
                 }
@@ -1019,17 +1234,114 @@ function updateDronePosition(timestamp) {
             isReturningToPathAfterLandingCancel = false;
             isPathPausedForLanding = false;
         }
-    } else if (isPathPausedForLanding || (isLanded && !(isSquareModeActive || isCircleModeActive))) {
     }
-    else if (!isLanded) {
-        if (isSquareModeActive) {
-            isFlyingSquarePath = true;
+    else if (!isPathPausedForLanding && !isLanded) {
+        if (isCellularDecompositionModeActive && droneReachedTargetAltitudeForCellularPath && cellularEndPoint && typeof cellularEndPoint.x === 'number') {
+            isFlyingCellularPath = true;
+
+            let currentTargetTripPath;
+            let finalTargetForTrip;
+            let startCalculationFrom;
+
+            if (isReturningToStartCellular) {
+                currentTargetTripPath = cellularReturnPathCoordinates;
+                finalTargetForTrip = {x: 0, y: 0};
+                startCalculationFrom = (cellularReturnPathCoordinates && cellularReturnPathCoordinates.length > 0) ? {
+                    x: newX,
+                    y: newY
+                } : cellularEndPoint;
+
+            } else {
+                currentTargetTripPath = cellularPathCoordinates;
+                finalTargetForTrip = cellularEndPoint;
+                startCalculationFrom = (cellularPathCoordinates && cellularPathCoordinates.length > 0) ? {
+                    x: newX,
+                    y: newY
+                } : {x: 0, y: 0};
+            }
+
+            if (!currentTargetTripPath || currentTargetTripPath.length === 0) {
+                if (isReturningToStartCellular) {
+                    if (Math.hypot(newX - cellularEndPoint.x, newY - cellularEndPoint.y) < 1.0) {
+                        startCalculationFrom = cellularEndPoint;
+                    } else {
+                        startCalculationFrom = {x: newX, y: newY};
+                    }
+                } else {
+                    if (Math.hypot(newX - 0, newY - 0) < 1.0) {
+                        startCalculationFrom = {x: 0, y: 0};
+                    } else {
+                        startCalculationFrom = {x: newX, y: newY};
+                    }
+                }
+
+                console.log(`Recalculating path for cellular mode. Returning: ${isReturningToStartCellular}. From: (${startCalculationFrom.x.toFixed(1)}, ${startCalculationFrom.y.toFixed(1)}) To: (${finalTargetForTrip.x.toFixed(1)}, ${finalTargetForTrip.y.toFixed(1)})`);
+                const fromPos = isReturningToStartCellular
+                    ? finalTargetForTrip
+                    : startCalculationFrom;
+                const toPos = isReturningToStartCellular
+                    ? startCalculationFrom
+                    : finalTargetForTrip;
+                const calculatedPathForTrip = calculateCellularPath(fromPos, toPos);
+
+                if (calculatedPathForTrip.length <= 1 && Math.hypot(startCalculationFrom.x - finalTargetForTrip.x, startCalculationFrom.y - finalTargetForTrip.y) > 2.0) {
+                } else {
+                    if (isReturningToStartCellular) {
+                        cellularReturnPathCoordinates = [...calculatedPathForTrip];
+                        currentTargetTripPath = cellularReturnPathCoordinates;
+                    } else {
+                        cellularPathCoordinates = [...calculatedPathForTrip];
+                        currentTargetTripPath = cellularPathCoordinates;
+                    }
+                    currentCellularPathIndex = 0;
+                    initMainGraph(false);
+                }
+            }
+
+            if (currentTargetTripPath && currentTargetTripPath.length > 0 && currentCellularPathIndex < currentTargetTripPath.length) {
+                const targetWaypoint = currentTargetTripPath[currentCellularPathIndex];
+                const dX_cell = targetWaypoint.x - newX;
+                const dY_cell = targetWaypoint.y - newY;
+                const dist_cell = Math.hypot(dX_cell, dY_cell);
+                const speed_cell = VORONOI_PATH_SPEED;
+                const step_cell = speed_cell * effectiveDeltaTime;
+
+                if (dist_cell <= step_cell) {
+                    newX = targetWaypoint.x;
+                    newY = targetWaypoint.y;
+                    currentCellularPathIndex++;
+
+                    if (currentCellularPathIndex >= currentTargetTripPath.length) {
+                        if (isReturningToStartCellular) {
+                            console.log("Cellular mode: Reached start point (0,0). Switching to forward trip.");
+                            isReturningToStartCellular = false;
+                            currentCellularPathIndex = 0;
+                            cellularPathCoordinates = [];
+                        } else {
+                            console.log("Cellular mode: Reached target endpoint. Switching to return trip.");
+                            cellularReturnPathCoordinates = [...cellularPathCoordinates].reverse();
+                            isReturningToStartCellular = true;
+                            currentCellularPathIndex = 0;
+                        }
+                    }
+                } else {
+                    newX += dX_cell / dist_cell * step_cell;
+                    newY += dY_cell / dist_cell * step_cell;
+                }
+
+                if (isCollidingWithObstacles(newX, newY)) {
+                }
+            } else if (currentTargetTripPath && currentTargetTripPath.length > 0 && currentCellularPathIndex >= currentTargetTripPath.length) {
+            } else if (!currentTargetTripPath || currentTargetTripPath.length === 0) {
+            }
+
+        } else if (isSquareModeActive && droneReachedTargetAltitudeForSquarePath) {
+            // Логика для режима "Квадрат"
             const targetPos = squarePathCoordinates[currentSquarePathIndex];
             const dX_sq = targetPos.x - newX;
             const dY_sq = targetPos.y - newY;
             const dist_sq = Math.hypot(dX_sq, dY_sq);
             const step_sq = SQUARE_PATH_SPEED * effectiveDeltaTime;
-
             if (dist_sq <= step_sq) {
                 newX = targetPos.x;
                 newY = targetPos.y;
@@ -1042,7 +1354,8 @@ function updateDronePosition(timestamp) {
                 newX += dX_sq / dist_sq * step_sq;
                 newY += dY_sq / dist_sq * step_sq;
             }
-        } else if (isCircleModeActive) {
+        } else if (isCircleModeActive && droneReachedTargetAltitudeForCirclePath) {
+            // Логика для режима "Круг"
             if (isApproachingCircleStart) {
                 currentCircleApproachTarget = CIRCLE_START_POINT;
                 const dX_circle_approach = currentCircleApproachTarget.x - newX;
@@ -1055,31 +1368,49 @@ function updateDronePosition(timestamp) {
                     newY = currentCircleApproachTarget.y;
                     isApproachingCircleStart = false;
                     isFlyingCirclePath = true;
-                    currentCircleAngle = 0;
+                    currentCircleAngle = Math.atan2(newX, newY);
                     console.log("Reached circle start point. Starting circular path.");
                 } else {
                     newX += dX_circle_approach / dist_circle_approach * step_circle_approach;
                     newY += dY_circle_approach / dist_circle_approach * step_circle_approach;
                 }
-            } else {
-                isFlyingCirclePath = true;
+            } else if (isFlyingCirclePath) {
                 const dAngle = CIRCLE_ANGULAR_SPEED * effectiveDeltaTime;
                 currentCircleAngle += dAngle;
-
                 newX = CIRCLE_RADIUS * Math.sin(currentCircleAngle);
                 newY = CIRCLE_RADIUS * Math.cos(currentCircleAngle);
-
                 if (currentCircleAngle >= (Math.PI * 2)) {
                     currentCircleAngle -= (Math.PI * 2);
                     console.log("Circle path loop.");
                 }
             }
-        } else if (!(isSquareModeActive || isCircleModeActive)) {
+        } else if (isVoronoiModeActive && droneReachedTargetAltitudeForVoronoiPath && voronoiPathCoordinates.length > 0) {
+            // Логика для режима "Метод Вороного"
+            const targetPos = voronoiPathCoordinates[currentVoronoiPathIndex];
+            const dX_v = targetPos.x - newX;
+            const dY_v = targetPos.y - newY;
+            const dist_v = Math.hypot(dX_v, dY_v);
+            const step_v = VORONOI_PATH_SPEED * effectiveDeltaTime;
+            if (dist_v <= step_v) {
+                newX = targetPos.x;
+                newY = targetPos.y;
+                currentVoronoiPathIndex++;
+                if (currentVoronoiPathIndex >= voronoiPathCoordinates.length) {
+                    currentVoronoiPathIndex = 0;
+                    console.log("Voronoi path loop.");
+                }
+            } else {
+                newX += dX_v / dist_v * step_v;
+                newY += dY_v / dist_v * step_v;
+            }
+        } else if (!(isSquareModeActive || isCircleModeActive || isVoronoiModeActive || isCellularDecompositionModeActive)) {
+            // Стандартное ручное управление, если ни один специальный режим не активен
             const moveStep = 5.0;
             newX += speedX * moveStep * effectiveDeltaTime;
             newY += speedY * moveStep * effectiveDeltaTime;
 
-            const limit = 100;
+            // Ограничение зоны полета для ручного режима
+            const limit = 1000;
             newX = Math.max(-limit, Math.min(limit, newX));
             newY = Math.max(-limit, Math.min(limit, newY));
         }
@@ -1087,7 +1418,6 @@ function updateDronePosition(timestamp) {
 
     x = newX;
     y = newY;
-
     const lastPathPoint = path.length > 0 ? path[path.length - 1] : null;
     if (!lastPathPoint || lastPathPoint.x !== x || lastPathPoint.y !== y) {
         path.push({x, y});
@@ -1096,35 +1426,51 @@ function updateDronePosition(timestamp) {
     lastPositionUpdate = timestamp;
     if (timestamp - lastPlotlyUpdate > PLOTLY_UPDATE_INTERVAL) {
         lastPlotlyUpdate = timestamp;
-        const pathLineData = {
-            x: [path.map(p => p.x)],
-            y: [path.map(p => p.y)]
-        };
-        const currentPositionMarkerData = {
-            x: [[x]],
-            y: [[y]]
-        };
-        Plotly.restyle('main-graph', pathLineData, [1]).catch(e => console.error("Plotly restyle path error:", e));
-        Plotly.restyle('main-graph', currentPositionMarkerData, [2]).catch(e => console.error("Plotly restyle marker error:", e));
+        const pathLineData = {x: [path.map(p => p.x)], y: [path.map(p => p.y)]};
+        const currentPositionMarkerData = {x: [[x]], y: [[y]]};
+        Plotly.restyle('main-graph', pathLineData, [1]).catch(e => console.error("Ошибка рестайла:", e));
+        Plotly.restyle('main-graph', currentPositionMarkerData, [2]).catch(e => console.error("Ошибка маркера:", e));
+
+        if (isCellularDecompositionModeActive) {
+            const currentVisPath = isReturningToStartCellular ? cellularReturnPathCoordinates : cellularPathCoordinates;
+            if (currentVisPath && currentVisPath.length > 0) {
+                const cellularPathTraceIndex = 4;
+                const graphElement = document.getElementById('main-graph');
+                if (graphElement && graphElement.data && graphElement.data.length > cellularPathTraceIndex && graphElement.data[cellularPathTraceIndex].name === 'Cellular Calculated Path') {
+                    Plotly.restyle('main-graph', {
+                        x: [currentVisPath.map(p => p.x)],
+                        y: [currentVisPath.map(p => p.y)]
+                    }, [cellularPathTraceIndex]).catch(e => {
+                    });
+                }
+            }
+        }
 
         const mainGraphDiv = document.getElementById('main-graph');
         if (mainGraphDiv && mainGraphDiv.layout && mainGraphDiv.layout.xaxis && mainGraphDiv.layout.yaxis) {
-            const currentLayout = document.getElementById('main-graph').layout;
-            const xRange = currentLayout.xaxis.range;
-            const yRange = currentLayout.yaxis.range;
-            const padding = 10;
-            const newXRange = [
-                Math.min(x - padding, xRange[0], -padding),
-                Math.max(x + padding, xRange[1], padding)
-            ];
-            const newYRange = [
-                Math.min(y - padding, yRange[0], -padding),
-                Math.max(y + padding, yRange[1], padding)
-            ];
-            Plotly.relayout('main-graph', {
-                'xaxis.range': newXRange,
-                'yaxis.range': newYRange
-            });
+            if (!isCellularDecompositionModeActive) {
+                const currentLayout = mainGraphDiv.layout;
+                const xRange = currentLayout.xaxis.range;
+                const yRange = currentLayout.yaxis.range;
+                const padding = 20;
+
+                let newXRange = [...xRange];
+                let newYRange = [...yRange];
+
+                if (x < xRange[0] + padding / 2 || x > xRange[1] - padding / 2 ||
+                    y < yRange[0] + padding / 2 || y > yRange[1] - padding / 2 ||
+                    xRange[1] - xRange[0] < 2 * padding || yRange[1] - yRange[0] < 2 * padding) {
+                    const targetXSpan = Math.max(Math.abs(x) * 0.4 + 2 * padding, 100);
+                    const targetYSpan = Math.max(Math.abs(y) * 0.4 + 2 * padding, 100);
+                    newXRange = [x - targetXSpan / 2, x + targetXSpan / 2];
+                    newYRange = [y - targetYSpan / 2, y + targetYSpan / 2];
+
+                    Plotly.relayout('main-graph', {
+                        'xaxis.range': newXRange,
+                        'yaxis.range': newYRange
+                    }).catch(e => console.error("Ошибка повторного layout:", e));
+                }
+            }
         }
     }
     droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
@@ -1133,29 +1479,40 @@ function updateDronePosition(timestamp) {
 async function updateAltitude(timestamp) {
     if (!isFlying || altitudeAnimationFrameId === null) {
         if (altitudeAnimationFrameId !== null && !isFlying) {
+            cancelAnimationFrame(altitudeAnimationFrameId);
             altitudeAnimationFrameId = null;
         }
         return;
     }
 
     if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding) {
-        if (Math.abs(altitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.5 && !isAltitudeChanging) {
-        }
     }
 
     if (isSquareModeActive) {
-        if (!droneReachedTargetAltitudeForSquarePath && !isAltitudeChanging && !isLanded) {
+        if (!droneReachedTargetAltitudeForSquarePath && !isAltitudeChanging && !isLanded && altitude >= targetAltitude - 0.5) {
             droneReachedTargetAltitudeForSquarePath = true;
             console.log("Initial target altitude reached for Square Mode path start.");
         }
     }
-
     if (isCircleModeActive) {
-        if (!droneReachedTargetAltitudeForCirclePath && !isAltitudeChanging && !isLanded) {
+        if (!droneReachedTargetAltitudeForCirclePath && !isAltitudeChanging && !isLanded && altitude >= targetAltitude - 0.5) {
             droneReachedTargetAltitudeForCirclePath = true;
-            console.log("Initial target altitude reached for Circle Mode. Approach/path will start if conditions met.");
         }
     }
+    if (isVoronoiModeActive) {
+        if (!droneReachedTargetAltitudeForVoronoiPath && !isAltitudeChanging && !isLanded && altitude >= targetAltitude - 0.5) {
+            droneReachedTargetAltitudeForVoronoiPath = true;
+        }
+    }
+    if (isCellularDecompositionModeActive) {
+        if (!droneReachedTargetAltitudeForCellularPath && !isAltitudeChanging && !isLanded && altitude >= targetAltitude - 0.5) {
+            droneReachedTargetAltitudeForCellularPath = true;
+            cellularPathCoordinates = [];
+            cellularReturnPathCoordinates = [];
+            currentCellularPathIndex = 0;
+        }
+    }
+
 
     const deltaTime = (timestamp - lastAltitudeUpdate) / 1000.0;
     if (deltaTime > 0 && deltaTime < 0.5) {
@@ -1163,10 +1520,12 @@ async function updateAltitude(timestamp) {
         const diff = targetAltitude - controlAltitude;
 
         if (Math.abs(diff) > 0.1) {
-            if (!isAltitudeChanging) isAltitudeChanging = true;
+            if (!isAltitudeChanging && !isLanded) isAltitudeChanging = true;
+
             const factor = Math.max(0.1, Math.min(1, Math.abs(diff) / 50));
             const dir = Math.sign(diff);
-            const rate = dir > 0 ? BASE_ASCENT_RATE * factor : BASE_DESCENT_RATE * factor;
+            const rate = dir > 0 ?
+                (BASE_ASCENT_RATE * factor) : (BASE_DESCENT_RATE * factor);
             const step = dir * rate * deltaTime;
 
             if (Math.abs(step) >= Math.abs(diff)) {
@@ -1174,11 +1533,14 @@ async function updateAltitude(timestamp) {
                 isAltitudeChanging = false;
                 if (targetAltitude <= 0.1 && !isLanded) {
                     isLanded = true;
+                    controlAltitude = 0;
+                    altitude = 0;
                     console.log("Дрон приземлился.");
+                    if (landingSequenceActiveInMode) {
+                    }
                 }
                 if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
                     Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
-                    console.log("Target altitude for path resumption reached.");
                 }
             } else {
                 controlAltitude += step;
@@ -1188,22 +1550,33 @@ async function updateAltitude(timestamp) {
             isAltitudeChanging = false;
             if (targetAltitude <= 0.1 && !isLanded) {
                 isLanded = true;
+                controlAltitude = 0;
+                altitude = 0;
                 console.log("Дрон приземлился (snapped).");
+                if (landingSequenceActiveInMode) {
+                }
             }
             if (isReturningToPathAfterLandingCancel && dronePathBeforeLanding &&
                 Math.abs(controlAltitude - dronePathBeforeLanding.altitudeBeforeLanding) < 0.1) {
-                console.log("Target altitude for path resumption reached (snapped).");
             }
         }
 
         if (controlAltitude < 0) controlAltitude = 0;
-        if (isLanded) controlAltitude = 0;
+        if (isLanded) {
+            controlAltitude = 0;
+            altitude = 0;
+            smoothedOscillation = 0;
+        }
+
 
         if (!isAltitudeChanging && !isLanded && !landingSequenceActiveInMode && !isReturningToPathAfterLandingCancel) {
             const minAlt = 5, maxAlt = 1000;
-            const minAmp = 0.3, maxAmp = 3;
-            const h_osc = Math.min(Math.max(controlAltitude, minAlt), maxAlt);
-            const noiseAmp = minAmp + (maxAmp - minAmp) * (h_osc - minAlt) / (maxAlt - minAlt);
+            const minAmp = 0.1, maxAmp = 0.5;
+
+            let noiseAmp = minAmp;
+            if (controlAltitude > minAlt) {
+                noiseAmp = minAmp + (maxAmp - minAmp) * Math.min(1, (controlAltitude - minAlt) / (maxAlt - minAlt));
+            }
             const rawNoise = (Math.random() * 2 - 1) * noiseAmp;
             smoothedOscillation = smoothedOscillation * (1 - OSCILLATION_SMOOTHING_FACTOR)
                 + rawNoise * OSCILLATION_SMOOTHING_FACTOR;
@@ -1211,7 +1584,13 @@ async function updateAltitude(timestamp) {
             smoothedOscillation = 0;
         }
 
-        altitude = controlAltitude + (isLanded ? 0 : smoothedOscillation);
+        if (!isLanded) {
+            altitude = controlAltitude + smoothedOscillation;
+            if (altitude < 0) altitude = 0;
+        } else {
+            altitude = 0;
+        }
+
         const absoluteAlt = altitude + heightAboveSeaLevel;
         const tempFluct = (Math.random() - 0.5) * 0.2;
         const pressFluct = (Math.random() - 0.5) * 0.1;
@@ -1247,17 +1626,18 @@ async function updateAltitude(timestamp) {
                 const current_alt_layout = gd_alt_div.layout;
                 const range_alt = current_alt_layout.xaxis.range || [0, GRAPH_WINDOW_SIZE];
                 const lastT_alt = i >= 0 ? altitudeData.x[i] : 0;
-
                 if (lastT_alt > range_alt[1]) {
-                    const newR_alt = [lastT_alt - GRAPH_WINDOW_SIZE + PLOTLY_UPDATE_INTERVAL_TIME / 1000, lastT_alt + PLOTLY_UPDATE_INTERVAL_TIME / 1000];
+                    const newR_alt = [lastT_alt - GRAPH_WINDOW_SIZE + (PLOTLY_UPDATE_INTERVAL_TIME / 1000), lastT_alt + (PLOTLY_UPDATE_INTERVAL_TIME / 1000)];
                     await Plotly.relayout('altitude-graph', {'xaxis.range': newR_alt});
                     await Plotly.relayout('temperature-graph', {'xaxis.range': newR_alt});
                     await Plotly.relayout('pressure-graph', {'xaxis.range': newR_alt});
-                } else if (range_alt[0] !== 0 && lastT_alt <= GRAPH_WINDOW_SIZE && lastT_alt > 0) {
-                    const init_alt = [0, GRAPH_WINDOW_SIZE];
-                    await Plotly.relayout('altitude-graph', {'xaxis.range': init_alt});
-                    await Plotly.relayout('temperature-graph', {'xaxis.range': init_alt});
-                    await Plotly.relayout('pressure-graph', {'xaxis.range': init_alt});
+                } else if (range_alt[0] !== 0 && lastT_alt <= GRAPH_WINDOW_SIZE && lastT_alt > (range_alt[1] - range_alt[0]) / 2) {
+                    if (range_alt[0] > 0 && altitudeData.x[altitudeData.x.length - 1] < GRAPH_WINDOW_SIZE && altitudeData.x[0] < GRAPH_WINDOW_SIZE) {
+                        const init_alt = [0, GRAPH_WINDOW_SIZE];
+                        await Plotly.relayout('altitude-graph', {'xaxis.range': init_alt});
+                        await Plotly.relayout('temperature-graph', {'xaxis.range': init_alt});
+                        await Plotly.relayout('pressure-graph', {'xaxis.range': init_alt});
+                    }
                 }
             }
         }
@@ -1265,7 +1645,8 @@ async function updateAltitude(timestamp) {
     }
 
     altitudeAnimationFrameId = isFlying
-        ? requestAnimationFrame(updateAltitude)
+        ?
+        requestAnimationFrame(updateAltitude)
         : null;
 }
 
@@ -1275,7 +1656,6 @@ function increaseAltitude() {
 
     if (isLanded) {
         if (isSquareModeActive || isCircleModeActive) {
-            console.log("Altitude Up (E) pressed while landed in Special Mode. Small liftoff, path continues.");
             isLanded = false;
             isAltitudeChanging = true;
 
@@ -1284,7 +1664,6 @@ function increaseAltitude() {
             const increment = Math.min(50, step);
 
             targetAltitude = (altitude > 0.1 ? altitude : 0) + increment;
-            console.log(`E-Takeoff (Special Mode): New Target: ${targetAltitude.toFixed(1)}. Path should continue.`);
 
             if (altitudeAnimationFrameId === null && isFlying) {
                 lastAltitudeUpdate = performance.now();
@@ -1292,7 +1671,6 @@ function increaseAltitude() {
             }
             return;
         } else {
-            console.log("Increase altitude (E) pressed while landed (Standard Mode or not in special mode). Initiating standard takeoff procedure.");
             _initiateTakeoff(true);
             return;
         }
@@ -1302,7 +1680,6 @@ function increaseAltitude() {
     const step = Math.max(1, Math.round(currentTarget / 100));
     const altitudeIncrement = Math.min(50, step);
     targetAltitude = Math.min(currentTarget + altitudeIncrement, 10000);
-    console.log(`Increasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
     if (altitudeAnimationFrameId === null && isFlying) {
@@ -1314,7 +1691,6 @@ function increaseAltitude() {
 function decreaseAltitude() {
     if (!isFlying) return;
     if (isLanded && targetAltitude <= 0.1) {
-        console.log("Cannot decrease altitude: Already landed and target is effectively zero.");
         return;
     }
 
@@ -1326,15 +1702,12 @@ function decreaseAltitude() {
 
     if (newCalculatedTargetAltitude <= 0.1 && currentTargetVal > 0.1 && !isLanded) {
         lastAltitudeBeforeLanding = currentActualAltitude;
-        console.log(`Q-Descent leading to land: Storing lastAltitudeBeforeLanding = ${lastAltitudeBeforeLanding.toFixed(1)}`);
     }
 
     targetAltitude = newCalculatedTargetAltitude;
-    console.log(`Decreasing altitude. Current: ${altitude.toFixed(1)}, New Target: ${targetAltitude.toFixed(1)}`);
     isAltitudeChanging = true;
 
     if (targetAltitude <= 0.1 && !isLanded) {
-        console.log("Targeting ground with decreaseAltitude button. This will be a manual landing.");
     }
 
     if (altitudeAnimationFrameId === null && isFlying) {
@@ -1346,13 +1719,13 @@ function decreaseAltitude() {
 // Функция посадки/взлёта
 function toggleLandTakeoff() {
     if (!isFlying) {
-        console.log("Cannot toggle land/takeoff: Not flying.");
         return;
     }
 
-    if (isSquareModeActive || isCircleModeActive) {
+    const isSpecialModeActive = isSquareModeActive || isCircleModeActive || isVoronoiModeActive || isCellularDecompositionModeActive;
+
+    if (isSpecialModeActive) {
         if (landingSequenceActiveInMode) {
-            console.log("Special Mode: Landing cancel requested. Returning to previous path and altitude.");
             if (dronePathBeforeLanding) {
                 targetAltitude = dronePathBeforeLanding.altitudeBeforeLanding;
                 isAltitudeChanging = true;
@@ -1360,42 +1733,86 @@ function toggleLandTakeoff() {
                 landingSequenceActiveInMode = false;
                 isPathPausedForLanding = true;
                 isLanded = false;
+                if (altitudeAnimationFrameId === null && isFlying) {
+                    lastAltitudeUpdate = performance.now();
+                    altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+                }
             } else {
-                console.warn("Special Mode: Landing cancel pressed, but no previous path data. Taking off to default alt.");
-                _initiateTakeoff(false);
+                _initiateTakeoff(true);
             }
         } else if (!isLanded) {
-            console.log("Special Mode: Landing initiated. Storing current state and returning to origin (0,0).");
             dronePathBeforeLanding = {
                 x: x, y: y, altitudeBeforeLanding: altitude, modeState: {}
             };
             if (isSquareModeActive) {
-                dronePathBeforeLanding.modeState = { type: 'square', index: currentSquarePathIndex, isFlying: isFlyingSquarePath, reachedAlt: droneReachedTargetAltitudeForSquarePath };
+                dronePathBeforeLanding.modeState = {
+                    type: 'square',
+                    index: currentSquarePathIndex,
+                    isFlying: isFlyingSquarePath,
+                    reachedAlt: droneReachedTargetAltitudeForSquarePath,
+                    coordinates: JSON.parse(JSON.stringify(squarePathCoordinates))
+                };
             } else if (isCircleModeActive) {
-                dronePathBeforeLanding.modeState = { type: 'circle', angle: currentCircleAngle, isFlying: isFlyingCirclePath, reachedAlt: droneReachedTargetAltitudeForCirclePath, isApproaching: isApproachingCircleStart, approachTarget: currentCircleApproachTarget };
+                dronePathBeforeLanding.modeState = {
+                    type: 'circle',
+                    angle: currentCircleAngle,
+                    isFlying: isFlyingCirclePath,
+                    reachedAlt: droneReachedTargetAltitudeForCirclePath,
+                    isApproaching: isApproachingCircleStart,
+                    approachTarget: currentCircleApproachTarget
+                };
+            } else if (isVoronoiModeActive) {
+                dronePathBeforeLanding.modeState = {
+                    type: 'voronoi',
+                    index: currentVoronoiPathIndex,
+                    isFlying: isFlyingVoronoiPath,
+                    reachedAlt: droneReachedTargetAltitudeForVoronoiPath,
+                    coordinates: JSON.parse(JSON.stringify(voronoiPathCoordinates))
+                };
+            } else if (isCellularDecompositionModeActive) {
+                dronePathBeforeLanding.modeState = {
+                    type: 'cells',
+                    path: JSON.parse(JSON.stringify(cellularPathCoordinates)),
+                    returnPath: JSON.parse(JSON.stringify(cellularReturnPathCoordinates)),
+                    index: currentCellularPathIndex,
+                    isReturning: isReturningToStartCellular,
+                    reachedAlt: droneReachedTargetAltitudeForCellularPath,
+                    isFlying: isFlyingCellularPath,
+                    endPoint: JSON.parse(JSON.stringify(cellularEndPoint)),
+                    obstacles: JSON.parse(JSON.stringify(cellularObstacles))
+                };
             }
+
             lastAltitudeBeforeLanding = altitude;
             targetAltitude = 0;
             isAltitudeChanging = true;
             landingSequenceActiveInMode = true;
             isPathPausedForLanding = true;
             isReturningToPathAfterLandingCancel = false;
+
+            if (altitudeAnimationFrameId === null && isFlying) {
+                lastAltitudeUpdate = performance.now();
+                altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+            }
         } else {
+            let takeoffAltitude;
+            if (dronePathBeforeLanding && landingSequenceActiveInMode) {
+                targetAltitude = dronePathBeforeLanding.altitudeBeforeLanding;
+                isReturningToPathAfterLandingCancel = true;
+                landingSequenceActiveInMode = false;
+                isLanded = false;
+                isAltitudeChanging = true;
 
-            if (dronePathBeforeLanding) {
-                console.log("Special Mode: Takeoff by L after SPECIAL L-landing (drone at 0,0). Path restart from origin.");
-                _initiateTakeoff(false);
-                dronePathBeforeLanding = null;
             } else {
-                console.log("Special Mode: Takeoff by L (after Q-land or initial on path). Target: lastAltitudeBeforeLanding.");
-
-                let takeoffAltitude;
-                if (lastAltitudeBeforeLanding > 1) {
-                    takeoffAltitude = lastAltitudeBeforeLanding;
-                    console.log(`L-Takeoff (Q-land/initial): Target altitude set to last remembered: ${takeoffAltitude.toFixed(1)}`);
-                } else {
-                    takeoffAltitude = INITIAL_TAKEOFF_ALTITUDE;
-                    console.log(`L-Takeoff (Q-land/initial): lastAltitudeBeforeLanding was <=1 or uninitialized, using INITIAL_TAKEOFF_ALTITUDE: ${takeoffAltitude.toFixed(1)}`);
+                takeoffAltitude = (lastAltitudeBeforeLanding > 1 && lastAltitudeBeforeLanding !== INITIAL_TAKEOFF_ALTITUDE) ? lastAltitudeBeforeLanding : appSettings.targetAltitude;
+                if (altitude < 0.1 && dronePathBeforeLanding && !landingSequenceActiveInMode) {
+                } else if (altitude < 0.1 && !dronePathBeforeLanding) {
+                    if (isSquareModeActive) currentSquarePathIndex = 0;
+                    if (isCircleModeActive) {
+                        isApproachingCircleStart = true;
+                        currentCircleAngle = 0;
+                    }
+                    if (isVoronoiModeActive) currentVoronoiPathIndex = 0;
                 }
 
                 targetAltitude = takeoffAltitude;
@@ -1405,20 +1822,14 @@ function toggleLandTakeoff() {
                 isReturningToPathAfterLandingCancel = false;
                 isPathPausedForLanding = false;
 
-                if (isSquareModeActive) {
-                    isFlyingSquarePath = false;
-                    droneReachedTargetAltitudeForSquarePath = false;
-                }
-                if (isCircleModeActive) {
-                    isFlyingCirclePath = false;
-                    droneReachedTargetAltitudeForCirclePath = false;
-                }
+                if (isSquareModeActive) droneReachedTargetAltitudeForSquarePath = false;
+                if (isCircleModeActive) droneReachedTargetAltitudeForCirclePath = false;
+                if (isVoronoiModeActive) droneReachedTargetAltitudeForVoronoiPath = false;
             }
-        }
-
-        if (altitudeAnimationFrameId === null && isFlying) {
-            lastAltitudeUpdate = performance.now();
-            altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+            if (altitudeAnimationFrameId === null && isFlying) {
+                lastAltitudeUpdate = performance.now();
+                altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+            }
         }
         if (droneAnimationFrameId === null && isFlying) {
             lastPositionUpdate = performance.now();
@@ -1427,22 +1838,25 @@ function toggleLandTakeoff() {
         return;
     }
 
-    // Стандартный режим
     if (isLanded) {
-        console.log("Standard Mode: Takeoff initiated.");
-        targetAltitude = lastAltitudeBeforeLanding > 1 ? lastAltitudeBeforeLanding : INITIAL_TAKEOFF_ALTITUDE;
+        targetAltitude = (lastAltitudeBeforeLanding > 1 && lastAltitudeBeforeLanding !== INITIAL_TAKEOFF_ALTITUDE) ? lastAltitudeBeforeLanding : appSettings.targetAltitude;
         isLanded = false;
         isAltitudeChanging = true;
     } else {
-        console.log("Standard Mode: Landing initiated.");
         if (altitude > 0.1) lastAltitudeBeforeLanding = altitude;
-        else lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
+        else lastAltitudeBeforeLanding = appSettings.targetAltitude;
         targetAltitude = 0;
         isAltitudeChanging = true;
     }
 
-    if (altitudeAnimationFrameId === null && isFlying) { lastAltitudeUpdate = performance.now(); altitudeAnimationFrameId = requestAnimationFrame(updateAltitude); }
-    if (droneAnimationFrameId === null && isFlying) { lastPositionUpdate = performance.now(); droneAnimationFrameId = requestAnimationFrame(updateDronePosition); }
+    if (altitudeAnimationFrameId === null && isFlying) {
+        lastAltitudeUpdate = performance.now();
+        altitudeAnimationFrameId = requestAnimationFrame(updateAltitude);
+    }
+    if (droneAnimationFrameId === null && isFlying) {
+        lastPositionUpdate = performance.now();
+        droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
+    }
 }
 
 function _initiateTakeoff(isResumeFromCurrentPositionInMode) {
@@ -1457,6 +1871,8 @@ function _initiateTakeoff(isResumeFromCurrentPositionInMode) {
     if (isSquareModeActive) {
         if (!isResumeFromCurrentPositionInMode) {
             currentSquarePathIndex = 0;
+            x = 0;
+            y = 0;
         }
         isFlyingSquarePath = false;
         droneReachedTargetAltitudeForSquarePath = false;
@@ -1465,11 +1881,26 @@ function _initiateTakeoff(isResumeFromCurrentPositionInMode) {
         if (!isResumeFromCurrentPositionInMode) {
             isApproachingCircleStart = true;
             currentCircleAngle = 0;
+            x = 0;
+            y = 0;
         } else {
-            isApproachingCircleStart = false;
+            if (!isApproachingCircleStart) isApproachingCircleStart = false;
+            else {
+                isApproachingCircleStart = true;
+            }
         }
         isFlyingCirclePath = false;
         droneReachedTargetAltitudeForCirclePath = false;
+    }
+    if (isVoronoiModeActive) {
+        if (!isResumeFromCurrentPositionInMode) {
+            currentVoronoiPathIndex = 0;
+            x = 0;
+            y = 0;
+            voronoiPathCoordinates = JSON.parse(JSON.stringify(appSettings.voronoiPoints));
+        }
+        isFlyingVoronoiPath = false;
+        droneReachedTargetAltitudeForVoronoiPath = false;
     }
 
     if (altitudeAnimationFrameId === null && isFlying) {
@@ -1498,18 +1929,35 @@ function clearGraphs(confirmed = false) {
         droneAnimationFrameId = null;
     }
 
-
+    isSquareModeActive = false;
     currentSquarePathIndex = 0;
     isFlyingSquarePath = false;
     droneReachedTargetAltitudeForSquarePath = false;
-    console.log("Square mode state reset during graph clearing.");
 
+    isCircleModeActive = false;
     isFlyingCirclePath = false;
     droneReachedTargetAltitudeForCirclePath = false;
     currentCircleAngle = 0;
     isApproachingCircleStart = true;
     currentCircleApproachTarget = null;
-    console.log("Circle mode flight parameters reset on clear.");
+
+    isVoronoiModeActive = false;
+    voronoiPathCoordinates = [];
+    appSettings.voronoiPoints = [];
+    currentVoronoiPathIndex = 0;
+    isFlyingVoronoiPath = false;
+    droneReachedTargetAltitudeForVoronoiPath = false;
+
+    isCellularDecompositionModeActive = false;
+    cellularEndPoint = {x: null, y: null};
+    appSettings.cellularEndPoint = {x: null, y: null};
+    cellularObstacles = [];
+    cellularPathCoordinates = [];
+    cellularReturnPathCoordinates = [];
+    currentCellularPathIndex = 0;
+    isFlyingCellularPath = false;
+    droneReachedTargetAltitudeForCellularPath = false;
+    isReturningToStartCellular = false;
 
     dronePathBeforeLanding = null;
     isReturningToPathAfterLandingCancel = false;
@@ -1524,12 +1972,12 @@ function clearGraphs(confirmed = false) {
     speedX = 0;
     speedY = 0;
     targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
+    appSettings.targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
     isLanded = true;
     lastAltitudeBeforeLanding = INITIAL_TAKEOFF_ALTITUDE;
     time = 0;
     path = [{x: 0, y: 0}];
     isAltitudeChanging = false;
-
 
     altitudeData.x = [];
     altitudeData.y = [];
@@ -1550,8 +1998,10 @@ function clearGraphs(confirmed = false) {
                 <path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>
             </svg>`;
         startStopButton.style.backgroundColor = '#28a745';
-        if (isFlying) isFlying = false;
     }
+
+    updateSettingsFields();
+
 
     setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
@@ -1614,7 +2064,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ['main-graph', 'altitude-graph', 'temperature-graph', 'pressure-graph'].forEach(graphId => {
                 const graphDiv = document.getElementById(graphId);
                 if (graphDiv && typeof graphDiv.layout !== 'undefined') {
-                    Plotly.Plots.resize(graphDiv).catch(e => console.error(`Resize error ${graphId}:`, e));
+                    Plotly.Plots.resize(graphDiv).catch(e => console.error(`Ошибка в ${graphId}:`, e));
                 }
             });
         }, 150);
@@ -1663,7 +2113,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // Движение дрона на графике
 function moveForward() {
     if (isSquareModeActive) {
-        console.log("Manual control disabled in Square Mode.");
+        return;
+    }
+    if (isCellularDecompositionModeActive) {
         return;
     }
     if (isFlying && !isLanded) speedY = 1;
@@ -1671,7 +2123,9 @@ function moveForward() {
 
 function moveBackward() {
     if (isSquareModeActive) {
-        console.log("Manual control disabled in Square Mode.");
+        return;
+    }
+    if (isCellularDecompositionModeActive) {
         return;
     }
     if (isFlying && !isLanded) speedY = -1;
@@ -1679,7 +2133,9 @@ function moveBackward() {
 
 function moveLeft() {
     if (isSquareModeActive) {
-        console.log("Manual control disabled in Square Mode.");
+        return;
+    }
+    if (isCellularDecompositionModeActive) {
         return;
     }
     if (isFlying && !isLanded) speedX = -1;
@@ -1687,7 +2143,9 @@ function moveLeft() {
 
 function moveRight() {
     if (isSquareModeActive) {
-        console.log("Manual control disabled in Square Mode.");
+        return;
+    }
+    if (isCellularDecompositionModeActive) {
         return;
     }
     if (isFlying && !isLanded) speedX = 1;
@@ -1700,9 +2158,8 @@ document.addEventListener('keydown', (event) => {
         return;
     }
 
-    if (isSquareModeActive && isFlying && !isLanded) {
+    if ((isSquareModeActive || isCellularDecompositionModeActive) && isFlying && !isLanded) {
         if (event.code !== 'KeyQ' && event.code !== 'KeyE' && event.code !== 'KeyL') {
-            console.log("Keyboard control disabled in Square Mode.");
             return;
         }
     }
@@ -1781,11 +2238,13 @@ document.addEventListener('keyup', (event) => {
 });
 
 // Окно настроек
-function showSettings() {
+async function showSettings() {
     let modal = document.getElementById('settingsModal');
-    if (modal) {
-        modal.classList.add('active');
+    if (modal && modal.classList.contains('active')) {
         return;
+    }
+    if (modal) {
+        modal.remove();
     }
 
     modal = document.createElement('div');
@@ -1793,26 +2252,134 @@ function showSettings() {
     modal.id = 'settingsModal';
     document.body.appendChild(modal);
 
-    fetch('settings-modal.html')
-        .then(response => response.text())
-        .then(html => {
-            modal.innerHTML = html;
+    try {
+        const response = await fetch('settings-modal.html');
+        if (!response.ok) throw new Error(`Не удалось загрузить settings-modal.html: ${response.statusText}`);
+        const html = await response.text();
+        modal.innerHTML = html;
 
-            updateSettingsFields();
+        const form = modal.querySelector('#settingsForm');
+        if (form) {
+            const voronoiSection = createPointInputSectionHTML('voronoi', 'Метод Вороного');
+            const graphSettingsSection = Array.from(form.children).find(child => child.classList.contains('settings-section') && child.querySelector('h4.section-title')?.textContent.includes('Настройки графиков'));
+            if (graphSettingsSection) {
+                form.insertBefore(voronoiSection, graphSettingsSection);
+            } else {
+                form.appendChild(voronoiSection);
+            }
 
-            setupSettingsInputHandlers();
+            let cellsSection = modal.querySelector('#cells_settings_section');
+            if (!cellsSection) {
+                cellsSection = createPointInputSectionHTML('cells', 'Клеточная декомпозиция');
+                const graphSettingsSection = Array.from(form.children).find(child => child.classList.contains('settings-section') && child.querySelector('h4.section-title')?.textContent.includes('Настройки графиков'));
+                if (graphSettingsSection) {
+                    form.insertBefore(cellsSection, graphSettingsSection);
+                } else {
+                    form.appendChild(cellsSection);
+                }
+            }
+        }
 
-            setTimeout(() => modal.classList.add('active'), 10);
+        updateSettingsFields();
+        setupSettingsInputHandlers();
 
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) closeSettingsModal();
-            });
-        })
-        .catch(error => {
-            console.error('Error loading settings modal:', error);
-            modal.innerHTML = `<div class="modal-content"><p>Error loading settings: ${error.message}</p></div>`;
-            modal.classList.add('active');
+        setTimeout(() => modal.classList.add('active'), 10);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeSettingsModal();
         });
+    } catch (error) {
+        console.error('Ошибка в окне настроек:', error);
+        const existingModal = document.getElementById('settingsModal');
+        if (existingModal) existingModal.remove();
+        openModal(`Ошибка загрузки настроек: ${error.message}`);
+    }
+}
+
+function createPointInputSectionHTML(modePrefix, title) {
+    const section = document.createElement('div');
+    section.id = `${modePrefix}_settings_section`;
+    section.className = 'settings-section point-input-section';
+    section.style.display = 'none';
+
+    if (modePrefix === 'cells') {
+        section.innerHTML = `
+            <h5 class="section-title">Конечная точка для "${title}"</h5>
+            <div class="point-input-controls">
+                <input type="number" id="${modePrefix}_x_input" placeholder="X">
+                <input type="number" id="${modePrefix}_y_input" placeholder="Y">
+                <button type="button" id="set_${modePrefix}_endpoint_btn" class="button-primary">Установить точку</button>
+            </div>
+            <div id="${modePrefix}_endpoint_display" class="points-list" style="min-height: 30px;"></div>
+            <div id="${modePrefix}_endpoint_error" class="error-message" style="color: red; font-size: 0.9em; margin-top: 5px;"></div>
+        `;
+    } else {
+        section.innerHTML = `
+            <h5 class="section-title">Координаты для "${title}"</h5>
+            <div class="point-input-controls">
+                <input type="number" id="${modePrefix}_x_input" placeholder="X">
+                <input type="number" id="${modePrefix}_y_input" placeholder="Y">
+                <button type="button" id="add_${modePrefix}_point_btn" class="button-primary">Добавить</button>
+            </div>
+            <div id="${modePrefix}_points_list" class="points-list"></div>
+            <button type="button" id="clear_${modePrefix}_points_btn" class="button-danger">Очистить все точки</button>
+        `;
+    }
+    return section;
+}
+
+function renderPointsList(modePrefix, pointsArray) {
+    const listDiv = document.getElementById(`${modePrefix}_points_list`);
+    if (!listDiv) return;
+    listDiv.innerHTML = '';
+    pointsArray.forEach((point, index) => {
+        const pointDiv = document.createElement('div');
+        pointDiv.textContent = `Точка ${index + 1}: (X: ${point.x}, Y: ${point.y})`;
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Удалить';
+        removeBtn.onclick = () => {
+            removePoint(modePrefix, index);
+        };
+        pointDiv.appendChild(removeBtn);
+        listDiv.appendChild(pointDiv);
+    });
+}
+
+function addPoint(modePrefix) {
+    const xInput = document.getElementById(`${modePrefix}_x_input`);
+    const yInput = document.getElementById(`${modePrefix}_y_input`);
+    if (!xInput || !yInput) return;
+
+    const x = parseFloat(xInput.value);
+    const y = parseFloat(yInput.value);
+    if (isNaN(x) || isNaN(y)) {
+        openModal('Пожалуйста, введите корректные числовые значения для X и Y.');
+        return;
+    }
+
+    if (modePrefix === 'voronoi') {
+        if (!Array.isArray(appSettings.voronoiPoints)) appSettings.voronoiPoints = [];
+        appSettings.voronoiPoints.push({x, y});
+        renderPointsList(modePrefix, appSettings.voronoiPoints);
+    }
+    xInput.value = '';
+    yInput.value = '';
+    xInput.focus();
+}
+
+function removePoint(modePrefix, index) {
+    if (modePrefix === 'voronoi') {
+        if (Array.isArray(appSettings.voronoiPoints) && index >= 0 && index < appSettings.voronoiPoints.length) {
+            appSettings.voronoiPoints.splice(index, 1);
+            renderPointsList(modePrefix, appSettings.voronoiPoints);
+        }
+    }
+}
+
+function clearPoints(modePrefix) {
+    if (modePrefix === 'voronoi') {
+        appSettings.voronoiPoints = [];
+        renderPointsList(modePrefix, appSettings.voronoiPoints);
+    }
 }
 
 function calculateAtmosphericParams() {
@@ -1829,40 +2396,73 @@ function calculateAtmosphericParams() {
 function updateSettingsFields() {
     const modal = document.getElementById('settingsModal');
     if (!modal) return;
+
     const hi = modal.querySelector('#height_above_sea');
     const ta = modal.querySelector('#target_altitude');
-    hi.value = appSettings.heightAboveSea;
-    ta.value = appSettings.targetAltitude;
+    if (hi) hi.value = appSettings.heightAboveSea;
+    if (ta) ta.value = appSettings.targetAltitude;
+
     updateCalculatedValues(appSettings.heightAboveSea);
+
+    const allModeButtons = modal.querySelectorAll('.shape-btn');
+    const activeModeButtonClass = 'active-flight-mode';
+
+    const squareBtn = modal.querySelector('.shape-btn[data-shape="square"]');
     const circleBtn = modal.querySelector('.shape-btn[data-shape="circle"]');
-    const otherBtns = modal.querySelectorAll('.shape-btn:not([data-shape="circle"])');
-    if (isCircleModeActive) {
-        circleBtn.classList.add('active-flight-mode');
-        otherBtns.forEach(b => b.disabled = true);
-    } else {
-        circleBtn.classList.remove('active-flight-mode');
-        otherBtns.forEach(b => b.disabled = false);
+    const voronoiBtn = modal.querySelector('.shape-btn[data-shape="voronoi"]');
+    const cellsBtn = modal.querySelector('.shape-btn[data-shape="cells"]');
+
+    const voronoiSettingsSection = modal.querySelector('#voronoi_settings_section');
+    const cellsSettingsSection = modal.querySelector('#cells_settings_section');
+
+    allModeButtons.forEach(btn => btn.classList.remove(activeModeButtonClass));
+    allModeButtons.forEach(btn => btn.disabled = false);
+
+    if (voronoiSettingsSection) voronoiSettingsSection.style.display = 'none';
+    if (cellsSettingsSection) cellsSettingsSection.style.display = 'none';
+
+
+    let aModeIsActive = false;
+    if (isSquareModeActive) {
+        if (squareBtn) squareBtn.classList.add(activeModeButtonClass);
+        aModeIsActive = true;
+    } else if (isCircleModeActive) {
+        if (circleBtn) circleBtn.classList.add(activeModeButtonClass);
+        aModeIsActive = true;
+    } else if (isVoronoiModeActive) {
+        if (voronoiBtn) voronoiBtn.classList.add(activeModeButtonClass);
+        if (voronoiSettingsSection) voronoiSettingsSection.style.display = 'block';
+        renderPointsList('voronoi', Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []);
+        aModeIsActive = true;
+    } else if (isCellularDecompositionModeActive) {
+        if (cellsBtn) cellsBtn.classList.add(activeModeButtonClass);
+        if (cellsSettingsSection) cellsSettingsSection.style.display = 'block';
+        renderCellularEndpoint();
+        aModeIsActive = true;
     }
 
-    const sq = modal.querySelector('.shape-btn[data-shape="square"]');
-    const others = modal.querySelectorAll('.shape-btn:not([data-shape="square"])');
-    if (isSquareModeActive) {
-        sq.classList.add('active-flight-mode');
-        others.forEach(b => b.disabled = true);
-    } else {
-        sq.classList.remove('active-flight-mode');
-        others.forEach(b => b.disabled = false);
+    if (aModeIsActive) {
+        allModeButtons.forEach(btn => {
+            if (!btn.classList.contains(activeModeButtonClass)) {
+                btn.disabled = true;
+            }
+        });
     }
 }
 
 function updateCalculatedValues(heightToCalculate) {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) return;
+
     let h = (typeof heightToCalculate === 'number')
-        ? heightToCalculate
-        : parseFloat(document.getElementById('height_above_sea').value) || 0;
+        ?
+        heightToCalculate
+        : parseFloat(modal.querySelector('#height_above_sea')?.value) || 0;
     const temperature = T0 + L * h - 273.15;
     const pressure = P0 * Math.pow(1 + (L * h) / T0, -(g * M) / (R * L)) / 100;
-    const tf = document.getElementById('calculated_temperature');
-    const pf = document.getElementById('calculated_pressure');
+
+    const tf = modal.querySelector('#calculated_temperature');
+    const pf = modal.querySelector('#calculated_pressure');
     if (tf) tf.value = temperature.toFixed(1);
     if (pf) pf.value = pressure.toFixed(1);
 }
@@ -1873,48 +2473,105 @@ function setupSettingsInputHandlers() {
 
     const initialH = appSettings.heightAboveSea;
     const initialT = appSettings.targetAltitude;
+    const initialVoronoiPoints = JSON.parse(JSON.stringify(Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []));
+    const initialCellularEndPoint = appSettings.cellularEndPoint ? JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : {
+        x: null,
+        y: null
+    };
+
     const hi = modal.querySelector('#height_above_sea');
     const ta = modal.querySelector('#target_altitude');
     const saveBtn = modal.querySelector('#saveSettingsBtn');
     const cancelBtn = modal.querySelector('#cancelSettingsBtn');
     const defBtn = modal.querySelector('.defaults-btn');
+
     const sqBtn = modal.querySelector('.shape-btn[data-shape="square"]');
     const circleBtn = modal.querySelector('.shape-btn[data-shape="circle"]');
-    circleBtn.addEventListener('click', handleCircleModeToggle);
+    const voronoiBtn = modal.querySelector('.shape-btn[data-shape="voronoi"]');
+    const cellsBtn = modal.querySelector('.shape-btn[data-shape="cells"]');
 
-    hi.addEventListener('input', () => updateCalculatedValues());
-    ta.addEventListener('input', () => {
-    });
+    if (hi) hi.addEventListener('input', () => updateCalculatedValues());
 
-    saveBtn.addEventListener('click', () => {
-        const newH = parseFloat(hi.value) || 0;
-        const newT = parseFloat(ta.value) || INITIAL_TAKEOFF_ALTITUDE;
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+        const newH = parseFloat(hi?.value) || 0;
+        const newT = parseFloat(ta?.value) || INITIAL_TAKEOFF_ALTITUDE;
+
         appSettings.heightAboveSea = newH;
         heightAboveSeaLevel = newH;
-        if (isFlying && newT !== appSettings.targetAltitude && isSquareModeActive) {
-            isFlyingSquarePath = false;
-            console.log("Square path paused due to target altitude change.");
+
+        if (newT !== appSettings.targetAltitude) {
+            if (isSquareModeActive) droneReachedTargetAltitudeForSquarePath = false;
+            if (isCircleModeActive) droneReachedTargetAltitudeForCirclePath = false;
+            if (isVoronoiModeActive) droneReachedTargetAltitudeForVoronoiPath = false;
+            if (isCellularDecompositionModeActive) droneReachedTargetAltitudeForCellularPath = false;
+            console.log("Целевая высота изменена. Дрон будет корректировать.");
         }
+
         appSettings.targetAltitude = newT;
-        targetAltitude = newT;
+        if (isFlying && !isLanded) {
+            if (targetAltitude !== newT) {
+                targetAltitude = newT;
+                isAltitudeChanging = true;
+                if (isSquareModeActive) droneReachedTargetAltitudeForSquarePath = false;
+                if (isCircleModeActive) droneReachedTargetAltitudeForCirclePath = false;
+                if (isVoronoiModeActive) droneReachedTargetAltitudeForVoronoiPath = false;
+                if (isCellularDecompositionModeActive) droneReachedTargetAltitudeForCellularPath = false;
+            }
+        }
         appSettings.lastUpdated = new Date();
         updateCalculatedValues(newH);
+
+        voronoiPathCoordinates = JSON.parse(JSON.stringify(Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []));
+
+        if (isCellularDecompositionModeActive) {
+            if (appSettings.cellularEndPoint && typeof appSettings.cellularEndPoint.x === 'number') {
+                cellularEndPoint = {...appSettings.cellularEndPoint};
+                generateCellularObstacles();
+                cellularPathCoordinates = [];
+                cellularReturnPathCoordinates = [];
+                currentCellularPathIndex = 0;
+                isReturningToStartCellular = false;
+                droneReachedTargetAltitudeForCellularPath = false;
+                initMainGraph(true);
+                console.log("Настройки клеточной декомпозиции сохранены, препятствия сгенерированы.");
+            } else {
+                openModal("Для режима клеточной декомпозиции необходимо установить корректную конечную точку.");
+                return;
+            }
+        }
         closeSettingsModal();
     });
 
-    cancelBtn.addEventListener('click', () => {
+    if (cancelBtn) cancelBtn.addEventListener('click', () => {
         appSettings.heightAboveSea = initialH;
         appSettings.targetAltitude = initialT;
+        appSettings.voronoiPoints = JSON.parse(JSON.stringify(initialVoronoiPoints));
+        appSettings.cellularEndPoint = JSON.parse(JSON.stringify(initialCellularEndPoint));
+
         closeSettingsModal();
     });
 
-    defBtn.addEventListener('click', () => {
-        hi.value = 0;
-        ta.value = INITIAL_TAKEOFF_ALTITUDE;
+    if (defBtn) defBtn.addEventListener('click', () => {
+        if (hi) hi.value = 0;
+        if (ta) ta.value = INITIAL_TAKEOFF_ALTITUDE;
+        appSettings.cellularEndPoint = {x: null, y: null};
+        renderCellularEndpoint();
         updateCalculatedValues(0);
     });
 
-    sqBtn.addEventListener('click', handleSquareModeToggle);
+    if (sqBtn) sqBtn.addEventListener('click', handleSquareModeToggle);
+    if (circleBtn) circleBtn.addEventListener('click', handleCircleModeToggle);
+    if (voronoiBtn) voronoiBtn.addEventListener('click', handleVoronoiModeToggle);
+    if (cellsBtn) cellsBtn.addEventListener('click', handleCellularDecompositionModeToggle);
+
+    const addVoronoiBtn = modal.querySelector('#add_voronoi_point_btn');
+    const clearVoronoiBtn = modal.querySelector('#clear_voronoi_points_btn');
+    if (addVoronoiBtn) addVoronoiBtn.onclick = () => addPoint('voronoi');
+    if (clearVoronoiBtn) clearVoronoiBtn.onclick = () => clearPoints('voronoi');
+
+    const setCellularBtn = modal.querySelector('#set_cells_endpoint_btn');
+    if (setCellularBtn) setCellularBtn.onclick = setCellularEndpoint;
+
     updateSettingsFields();
 }
 
@@ -1928,90 +2585,333 @@ function closeSettingsModal() {
     }
 }
 
-function handleSquareModeToggle() {
-    const squareButton = document.querySelector('.shape-btn[data-shape="square"]');
-    const otherShapeButtons = document.querySelectorAll('.shape-btn:not([data-shape="square"])');
-
-    isSquareModeActive = !isSquareModeActive;
-    if (isSquareModeActive) {
-        if (squareButton) {
-            squareButton.classList.add('active-flight-mode');
-        }
-        otherShapeButtons.forEach(btn => {
-            btn.disabled = true;
-            btn.classList.remove('active-flight-mode');
-        });
-
-        // Reset square path state
-        currentSquarePathIndex = 0;
+function resetAllSpecialModesState(exceptMode = null) {
+    if (exceptMode !== 'square') {
+        isSquareModeActive = false;
         isFlyingSquarePath = false;
         droneReachedTargetAltitudeForSquarePath = false;
+        currentSquarePathIndex = 0;
+    }
+    if (exceptMode !== 'circle') {
+        isCircleModeActive = false;
+        isFlyingCirclePath = false;
+        droneReachedTargetAltitudeForCirclePath = false;
+        isApproachingCircleStart = true;
+        currentCircleAngle = 0;
+    }
+    if (exceptMode !== 'voronoi') {
+        isVoronoiModeActive = false;
+        isFlyingVoronoiPath = false;
+        droneReachedTargetAltitudeForVoronoiPath = false;
+        currentVoronoiPathIndex = 0;
+    }
+    if (exceptMode !== 'cells') {
+        isCellularDecompositionModeActive = false;
+        isFlyingCellularPath = false;
+        droneReachedTargetAltitudeForCellularPath = false;
+        currentCellularPathIndex = 0;
+        cellularObstacles = [];
+        cellularPathCoordinates = [];
+        cellularReturnPathCoordinates = [];
+        isReturningToStartCellular = false;
+    }
 
-        if (isCircleModeActive) {
-            isCircleModeActive = false;
-            const circleBtn = document.querySelector('.shape-btn[data-shape="circle"]');
-            if (circleBtn) circleBtn.classList.remove('active-flight-mode');
-            isApproachingCircleStart = false;
-            isFlyingCirclePath = false;
-            droneReachedTargetAltitudeForCirclePath = false;
-        }
+    isPathPausedForLanding = false;
+    landingSequenceActiveInMode = false;
+    isReturningToPathAfterLandingCancel = false;
+    dronePathBeforeLanding = null;
+}
 
-        isPathPausedForLanding = false;
-        landingSequenceActiveInMode = false;
-        isReturningToPathAfterLandingCancel = false;
-        dronePathBeforeLanding = null;
-
-        console.log("Square mode activated. Waiting for flight start and target altitude.");
+function handleSquareModeToggle() {
+    isSquareModeActive = !isSquareModeActive;
+    if (isSquareModeActive) {
+        resetAllSpecialModesState('square');
     } else {
-        if (squareButton) {
-            squareButton.classList.remove('active-flight-mode');
-
-        }
-        otherShapeButtons.forEach(btn => btn.disabled = false);
-        isFlyingSquarePath = false;
-        console.log("Square mode deactivated.");
     }
     updateSettingsFields();
 }
 
 function handleCircleModeToggle() {
-    const circleBtn = document.querySelector('.shape-btn[data-shape="circle"]');
-    const otherShapeButtons = document.querySelectorAll('.shape-btn:not([data-shape="circle"])');
-
     isCircleModeActive = !isCircleModeActive;
     if (isCircleModeActive) {
-        if (circleBtn) circleBtn.classList.add('active-flight-mode');
-        otherShapeButtons.forEach(b => {
-            b.disabled = true;
-            b.classList.remove('active-flight-mode');
-        });
-
+        resetAllSpecialModesState('circle');
         isApproachingCircleStart = true;
-        currentCircleApproachTarget = null;
-        isFlyingCirclePath = false;
         currentCircleAngle = 0;
-        droneReachedTargetAltitudeForCirclePath = false;
-
-        if (isSquareModeActive) {
-            isSquareModeActive = false;
-            const squareBtn = document.querySelector('.shape-btn[data-shape="square"]');
-            if (squareBtn) squareBtn.classList.remove('active-flight-mode');
-            isFlyingSquarePath = false;
-            droneReachedTargetAltitudeForSquarePath = false;
-        }
-
-        isPathPausedForLanding = false;
-        landingSequenceActiveInMode = false;
-        isReturningToPathAfterLandingCancel = false;
-        dronePathBeforeLanding = null;
-
-        console.log("Circle mode activated. Waiting for flight start and target altitude for approach.");
     } else {
-        if (circleBtn) circleBtn.classList.remove('active-flight-mode');
-        otherShapeButtons.forEach(b => b.disabled = false);
-        isApproachingCircleStart = false;
-        isFlyingCirclePath = false;
-        console.log("Circle mode deactivated.");
     }
     updateSettingsFields();
+}
+
+// Обработчик метода Вороного
+function handleVoronoiModeToggle() {
+    isVoronoiModeActive = !isVoronoiModeActive;
+    if (isVoronoiModeActive) {
+        resetAllSpecialModesState('voronoi');
+        voronoiPathCoordinates = JSON.parse(JSON.stringify(appSettings.voronoiPoints));
+        currentVoronoiPathIndex = 0;
+        isFlyingVoronoiPath = false;
+        droneReachedTargetAltitudeForVoronoiPath = false;
+        if (voronoiPathCoordinates.length === 0) {
+        }
+    } else {
+    }
+    updateSettingsFields();
+}
+
+function renderCellularEndpoint() {
+    const displayDiv = document.getElementById('cells_endpoint_display');
+    const errorDiv = document.getElementById('cells_endpoint_error');
+    if (!displayDiv) return;
+
+    if (errorDiv) errorDiv.textContent = '';
+
+    if (appSettings.cellularEndPoint && typeof appSettings.cellularEndPoint.x === 'number' && typeof appSettings.cellularEndPoint.y === 'number') {
+        displayDiv.textContent = `Конечная точка: (X: ${appSettings.cellularEndPoint.x}, Y: ${appSettings.cellularEndPoint.y})`;
+    } else {
+        displayDiv.textContent = 'Конечная точка не установлена.';
+    }
+}
+
+function setCellularEndpoint() {
+    const xInput = document.getElementById('cells_x_input');
+    const yInput = document.getElementById('cells_y_input');
+    const errorDiv = document.getElementById('cells_endpoint_error');
+
+    if (!xInput || !yInput || !errorDiv) return;
+
+    const x = parseFloat(xInput.value);
+    const y = parseFloat(yInput.value);
+
+    errorDiv.textContent = '';
+
+    if (isNaN(x) || isNaN(y)) {
+        errorDiv.textContent = 'Пожалуйста, введите корректные числовые значения для X и Y.';
+        return;
+    }
+
+    if (x > -10 && x < 10 && y > -10 && y < 10) {
+        errorDiv.textContent = 'Конечная точка не может быть в диапазоне (X: от -10 до 10, Y: от -10 до 10).';
+        appSettings.cellularEndPoint = {x: null, y: null};
+    } else {
+        appSettings.cellularEndPoint = {x, y};
+    }
+    renderCellularEndpoint();
+}
+
+function handleCellularDecompositionModeToggle() {
+    isCellularDecompositionModeActive = !isCellularDecompositionModeActive;
+    if (isCellularDecompositionModeActive) {
+        resetAllSpecialModesState('cells');
+        if (!appSettings.cellularEndPoint) {
+            appSettings.cellularEndPoint = {x: null, y: null};
+        }
+    } else {
+    }
+    updateSettingsFields();
+}
+
+function generateCellularObstacles() {
+    cellularObstacles = [];
+    const startPos = {x: 0, y: 0};
+
+    if (!cellularEndPoint || typeof cellularEndPoint.x !== 'number' || typeof cellularEndPoint.y !== 'number') {
+        return;
+    }
+
+    const dx = cellularEndPoint.x - startPos.x;
+    const dy = cellularEndPoint.y - startPos.y;
+    const totalDistance = Math.hypot(dx, dy);
+
+    if (totalDistance < 10) {
+        return;
+    }
+
+    const BASE_DISTANCE_FOR_SCALING = 100.0;
+    const MIN_SCALING_FACTOR = 0.3;
+    const MAX_SCALING_FACTOR = 1.0;
+    const scalingFactor = Math.max(MIN_SCALING_FACTOR, Math.min(MAX_SCALING_FACTOR, totalDistance / BASE_DISTANCE_FOR_SCALING));
+
+    const BASE_OBSTACLE_BLOCK_SIZE = CELL_OBSTACLE_SIZE;
+    const MIN_OBSTACLE_BLOCK_SIZE = 1.5;
+    const scaledBlockSize = Math.max(MIN_OBSTACLE_BLOCK_SIZE, BASE_OBSTACLE_BLOCK_SIZE * scalingFactor);
+
+    const obstacleWidth = scaledBlockSize;
+    const obstacleHeight = scaledBlockSize;
+
+    const scaledGapSize = scaledBlockSize * 2.5 * scalingFactor;
+
+    const pathAngle = Math.atan2(dy, dx);
+    const perpendicularAngle = pathAngle + Math.PI / 2;
+
+    const addObstacle = (centerX, centerY, idSuffix) => {
+        const obsX = centerX - obstacleWidth / 2;
+        const obsY = centerY + obstacleHeight / 2;
+        cellularObstacles.push({
+            x: obsX,
+            y: obsY,
+            width: obstacleWidth,
+            height: obstacleHeight,
+            id: `obs-${idSuffix}`
+        });
+    };
+
+    const dist1 = totalDistance * 0.3;
+    const point1_x = startPos.x + dist1 * Math.cos(pathAngle);
+    const point1_y = startPos.y + dist1 * Math.sin(pathAngle);
+
+    const blockOffset1 = obstacleWidth / 2;
+    const block1_cx = point1_x - blockOffset1 * Math.cos(perpendicularAngle);
+    const block1_cy = point1_y - blockOffset1 * Math.sin(perpendicularAngle);
+    const block2_cx = point1_x + blockOffset1 * Math.cos(perpendicularAngle);
+    const block2_cy = point1_y + blockOffset1 * Math.sin(perpendicularAngle);
+
+    addObstacle(block1_cx, block1_cy, `30-1`);
+    addObstacle(block2_cx, block2_cy, `30-2`);
+
+    const dist2 = totalDistance * 0.6;
+    const point2_x = startPos.x + dist2 * Math.cos(pathAngle);
+    const point2_y = startPos.y + dist2 * Math.sin(pathAngle);
+
+    const blockOffset2 = scaledGapSize / 2 + obstacleWidth / 2;
+    const block3_cx = point2_x - blockOffset2 * Math.cos(perpendicularAngle);
+    const block3_cy = point2_y - blockOffset2 * Math.sin(perpendicularAngle);
+    const block4_cx = point2_x + blockOffset2 * Math.cos(perpendicularAngle);
+    const block4_cy = point2_y + blockOffset2 * Math.sin(perpendicularAngle);
+
+    addObstacle(block3_cx, block3_cy, `60-1`);
+    addObstacle(block4_cx, block4_cy, `60-2`);
+
+
+}
+
+function isCollidingWithObstacles(checkX, checkY, droneRadius = 0.5) {
+    if (!isCellularDecompositionModeActive || cellularObstacles.length === 0) {
+        return false;
+    }
+    const safetyClearance = 0.5;
+
+    for (const obs of cellularObstacles) {
+        const expandedObsX0 = obs.x - safetyClearance;
+        const expandedObsY0 = obs.y - obs.height - safetyClearance;
+        const expandedObsX1 = obs.x + obs.width + safetyClearance;
+        const expandedObsY1 = obs.y + safetyClearance;
+
+        if (checkX + droneRadius > expandedObsX0 &&
+            checkX - droneRadius < expandedObsX1 &&
+            checkY + droneRadius > expandedObsY0 &&
+            checkY - droneRadius < expandedObsY1) {
+            return obs;
+        }
+    }
+    return null;
+}
+
+function calculateCellularPath(startPos, targetPos) {
+    class Node {
+        constructor(x, y, parent = null) {
+            this.x = x;
+            this.y = y;
+            this.parent = parent;
+            this.g = 0;
+            this.h = 0;
+            this.f = 0;
+        }
+    }
+
+    const gridSize = 2.0;
+    const obstacleMargin = 0.8;
+
+    const getGridKey = (x, y) => `${Math.round(x / gridSize)}_${Math.round(y / gridSize)}`;
+    const openSet = new Map();
+    const closedSet = new Map();
+
+    const startNode = new Node(startPos.x, startPos.y);
+    startNode.h = heuristic(startPos, targetPos);
+    startNode.f = startNode.h;
+    openSet.set(getGridKey(startNode.x, startNode.y), startNode);
+
+    function heuristic(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function isFree(x, y) {
+        for (const obs of cellularObstacles) {
+            if (x > obs.x - obstacleMargin &&
+                x < obs.x + obs.width + obstacleMargin &&
+                y > obs.y - obs.height - obstacleMargin &&
+                y < obs.y + obstacleMargin) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function getNeighbors(node) {
+        const neighbors = [];
+        const directions = [
+            [0, gridSize], [0, -gridSize],
+            [gridSize, 0], [-gridSize, 0],
+            [gridSize, gridSize], [gridSize, -gridSize],
+            [-gridSize, gridSize], [-gridSize, -gridSize]
+        ];
+
+        for (const [dx, dy] of directions) {
+            const x = node.x + dx;
+            const y = node.y + dy;
+
+            if (isFree(x, y)) {
+                neighbors.push(new Node(x, y, node));
+            }
+        }
+        return neighbors;
+    }
+
+    let pathFound = false;
+    let currentNode = null;
+
+    while (openSet.size > 0) {
+        currentNode = Array.from(openSet.values()).reduce((minNode, node) =>
+            node.f < minNode.f ? node : minNode, openSet.values().next().value);
+
+        if (heuristic(currentNode, targetPos) < gridSize * 2) {
+            pathFound = true;
+            break;
+        }
+
+        openSet.delete(getGridKey(currentNode.x, currentNode.y));
+        closedSet.set(getGridKey(currentNode.x, currentNode.y), currentNode);
+
+        for (const neighbor of getNeighbors(currentNode)) {
+            const gridKey = getGridKey(neighbor.x, neighbor.y);
+
+            if (closedSet.has(gridKey)) continue;
+
+            const tentativeG = currentNode.g + heuristic(currentNode, neighbor);
+
+            if (!openSet.has(gridKey) || tentativeG < openSet.get(gridKey).g) {
+                neighbor.g = tentativeG;
+                neighbor.h = heuristic(neighbor, targetPos);
+                neighbor.f = neighbor.g + neighbor.h;
+                neighbor.parent = currentNode;
+
+                if (!openSet.has(gridKey)) {
+                    openSet.set(gridKey, neighbor);
+                }
+            }
+        }
+    }
+
+    const path = [];
+    if (pathFound) {
+        let node = currentNode;
+        while (node) {
+            path.unshift({x: node.x, y: node.y});
+            node = node.parent;
+        }
+        path.push(targetPos);
+    } else {
+        return [];
+    }
+
+    return path;
 }
