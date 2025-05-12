@@ -2712,77 +2712,73 @@ function handleCellularDecompositionModeToggle() {
 
 function generateCellularObstacles() {
     cellularObstacles = [];
-    const startPos = {x: 0, y: 0};
-
-    if (!cellularEndPoint || typeof cellularEndPoint.x !== 'number' || typeof cellularEndPoint.y !== 'number') {
+    if (!cellularEndPoint || typeof cellularEndPoint.x !== 'number') {
+        console.log("Cannot generate obstacles, endpoint not set.");
         return;
     }
 
-    const dx = cellularEndPoint.x - startPos.x;
-    const dy = cellularEndPoint.y - startPos.y;
-    const totalDistance = Math.hypot(dx, dy);
+    const startPoint = { x: 0, y: 0 };
+    const dist = Math.hypot(cellularEndPoint.x - startPoint.x, cellularEndPoint.y - startPoint.y);
 
-    if (totalDistance < 10) {
-        return;
+    const maxDistForMaxSquares = 300;
+    const minDistForMinSquares = 30;
+    let numSquares;
+    if (dist <= minDistForMinSquares) {
+        numSquares = 5;
+    } else if (dist >= maxDistForMaxSquares) {
+        numSquares = 20;
+    } else {
+        numSquares = 5 + Math.round(15 * (dist - minDistForMinSquares) / (maxDistForMaxSquares - minDistForMinSquares));
     }
+    numSquares = Math.max(5, Math.min(20, numSquares));
+    console.log(`Generating ${numSquares} obstacles for cellular decomposition. Distance: ${dist.toFixed(1)}m`);
 
-    const BASE_DISTANCE_FOR_SCALING = 100.0;
-    const MIN_SCALING_FACTOR = 0.3;
-    const MAX_SCALING_FACTOR = 1.0;
-    const scalingFactor = Math.max(MIN_SCALING_FACTOR, Math.min(MAX_SCALING_FACTOR, totalDistance / BASE_DISTANCE_FOR_SCALING));
+    const safetyMargin = 15;
+    for (let i = 0; i < numSquares; i++) {
+        let obsX, obsY, validPlacement, attempts = 0;
+        do {
+            validPlacement = true;
+            const progress = Math.random();
+            const perpSpread = (Math.random() - 0.5) * (dist / 3);
 
-    const BASE_OBSTACLE_BLOCK_SIZE = CELL_OBSTACLE_SIZE;
-    const MIN_OBSTACLE_BLOCK_SIZE = 1.5;
-    const scaledBlockSize = Math.max(MIN_OBSTACLE_BLOCK_SIZE, BASE_OBSTACLE_BLOCK_SIZE * scalingFactor);
+            const lineVecX = cellularEndPoint.x;
+            const lineVecY = cellularEndPoint.y;
+            const lineLength = Math.hypot(lineVecX, lineVecY);
+            const ux = lineLength > 0 ? lineVecX / lineLength : 0;
+            const uy = lineLength > 0 ? lineVecY / lineLength : 0;
 
-    const obstacleWidth = scaledBlockSize;
-    const obstacleHeight = scaledBlockSize;
+            const px = ux * progress * dist;
+            const py = uy * progress * dist;
+            obsX = px - uy * perpSpread;
+            obsY = py + ux * perpSpread;
 
-    const scaledGapSize = scaledBlockSize * 2.5 * scalingFactor;
+            if (Math.hypot(obsX, obsY) < safetyMargin ||
+                Math.hypot(obsX - cellularEndPoint.x, obsY - cellularEndPoint.y) < safetyMargin + CELL_OBSTACLE_SIZE) {
+                validPlacement = false;
+            }
 
-    const pathAngle = Math.atan2(dy, dx);
-    const perpendicularAngle = pathAngle + Math.PI / 2;
+            for (const ex of cellularObstacles) {
+                if (Math.hypot(obsX - (ex.x + CELL_OBSTACLE_SIZE/2), obsY - (ex.y - CELL_OBSTACLE_SIZE/2)) < CELL_OBSTACLE_SIZE * 1.5) {
+                    validPlacement = false;
+                    break;
+                }
+            }
+            attempts++;
+        } while (!validPlacement && attempts < 20);
 
-    const addObstacle = (centerX, centerY, idSuffix) => {
-        const obsX = centerX - obstacleWidth / 2;
-        const obsY = centerY + obstacleHeight / 2;
-        cellularObstacles.push({
-            x: obsX,
-            y: obsY,
-            width: obstacleWidth,
-            height: obstacleHeight,
-            id: `obs-${idSuffix}`
-        });
-    };
-
-    const dist1 = totalDistance * 0.3;
-    const point1_x = startPos.x + dist1 * Math.cos(pathAngle);
-    const point1_y = startPos.y + dist1 * Math.sin(pathAngle);
-
-    const blockOffset1 = obstacleWidth / 2;
-    const block1_cx = point1_x - blockOffset1 * Math.cos(perpendicularAngle);
-    const block1_cy = point1_y - blockOffset1 * Math.sin(perpendicularAngle);
-    const block2_cx = point1_x + blockOffset1 * Math.cos(perpendicularAngle);
-    const block2_cy = point1_y + blockOffset1 * Math.sin(perpendicularAngle);
-
-    addObstacle(block1_cx, block1_cy, `30-1`);
-    addObstacle(block2_cx, block2_cy, `30-2`);
-
-    const dist2 = totalDistance * 0.6;
-    const point2_x = startPos.x + dist2 * Math.cos(pathAngle);
-    const point2_y = startPos.y + dist2 * Math.sin(pathAngle);
-
-    const blockOffset2 = scaledGapSize / 2 + obstacleWidth / 2;
-    const block3_cx = point2_x - blockOffset2 * Math.cos(perpendicularAngle);
-    const block3_cy = point2_y - blockOffset2 * Math.sin(perpendicularAngle);
-    const block4_cx = point2_x + blockOffset2 * Math.cos(perpendicularAngle);
-    const block4_cy = point2_y + blockOffset2 * Math.sin(perpendicularAngle);
-
-    addObstacle(block3_cx, block3_cy, `60-1`);
-    addObstacle(block4_cx, block4_cy, `60-2`);
-
-
+        if (validPlacement) {
+            cellularObstacles.push({
+                x: obsX - CELL_OBSTACLE_SIZE / 2,
+                y: obsY + CELL_OBSTACLE_SIZE / 2,
+                width: CELL_OBSTACLE_SIZE,
+                height: CELL_OBSTACLE_SIZE,
+                id: `obs-${i}`
+            });
+        }
+    }
+    console.log("Generated obstacles:", cellularObstacles);
 }
+
 
 function isCollidingWithObstacles(checkX, checkY, droneRadius = 0.5) {
     if (!isCellularDecompositionModeActive || cellularObstacles.length === 0) {
