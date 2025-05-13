@@ -264,15 +264,15 @@ function createDroneCard(drone) {
             </div>
             <div class="detail-row">
                 <span>Макс. высота:</span>
-        <span class="max-height">Загрузка...</span>
+        <span class="max-altitude">Загрузка...</span>
             </div>
             <div class="detail-row">
                 <span>Мин. температура:</span>
-        <span class="max-temp">Загрузка...</span>
+        <span class="min-temperature">Загрузка...</span>
             </div>
             <div class="detail-row">
                 <span>Мин. давление:</span>
-        <span class="max-pressure">Загрузка...</span>
+        <span class="min-pressure">Загрузка...</span>
             </div>
         </div>
     `;
@@ -312,9 +312,9 @@ async function loadDroneDetails(droneName, element) {
 
         setContent('.model', data.model || '-');
         setContent('.weight', data.weight ? `${data.weight} кг` : '-');
-        setContent('.max-height', data.max_height ? `${data.max_height} м` : '-');
-        setContent('.max-temp', data.max_temperature ? `${data.max_temperature} °C` : '-');
-        setContent('.max-pressure', data.max_altitude ? `${data.max_altitude} гПа` : '-');
+        setContent('.max-altitude', data.max_altitude ? `${data.max_altitude} м` : '-');
+        setContent('.min-temperature', data.min_temperature ? `${data.min_temperature} °C` : '-');
+        setContent('.min-pressure', data.min_pressure ? `${data.min_pressure} гПа` : '-');
     } catch (error) {
         console.error('Ошибка загрузки деталей:', error);
         const errorEl = element.querySelector('.error-message') || document.createElement('div');
@@ -447,9 +447,9 @@ function initFormHandlers() {
             name: form.querySelector('#name')?.value.trim() || '',
             model: form.querySelector('#model')?.value.trim() || '',
             weight: parseFloat(form.querySelector('#weight')?.value) || 0,
-            max_height: parseFloat(form.querySelector('#max_height')?.value) || 0,
-            max_temperature: parseFloat(form.querySelector('#max_temperature')?.value) || 0,
-            max_altitude: parseFloat(form.querySelector('#max_altitude')?.value) || 0
+            max_altitude: parseFloat(form.querySelector('#max_altitude')?.value) || 0,
+            min_temperature: parseFloat(form.querySelector('#min_temperature')?.value) || 0,
+            min_pressure: parseFloat(form.querySelector('#min_pressure')?.value) || 0
         };
         if (!validateDroneData({...formData, newName: formData.name}, true)) return;
 
@@ -580,9 +580,9 @@ async function editDrone(name) {
             document.getElementById('edit_name').value = drone.name;
             document.getElementById('edit_model').value = drone.model || '';
             document.getElementById('edit_weight').value = drone.weight || '';
-            document.getElementById('edit_max_height').value = drone.max_height || '';
-            document.getElementById('edit_max_temperature').value = drone.max_temperature || '';
             document.getElementById('edit_max_altitude').value = drone.max_altitude || '';
+            document.getElementById('edit_min_temperature').value = drone.min_temperature || '';
+            document.getElementById('edit_min_pressure').value = drone.min_pressure || '';
 
             modal.classList.add('active');
             initEditFormHandlers();
@@ -608,9 +608,9 @@ function initEditFormHandlers() {
                 newName: form.querySelector('#edit_name')?.value.trim() || '',
                 model: form.querySelector('#edit_model')?.value.trim() || '',
                 weight: parseFloat(form.querySelector('#edit_weight')?.value) || 0,
-                max_height: parseFloat(form.querySelector('#edit_max_height')?.value) || 0,
-                max_temperature: parseFloat(form.querySelector('#edit_max_temperature')?.value) || 0,
-                max_altitude: parseFloat(form.querySelector('#edit_max_altitude')?.value) || 0
+                max_altitude: parseFloat(form.querySelector('#edit_max_altitude')?.value) || 0,
+                min_temperature: parseFloat(form.querySelector('#edit_min_temperature')?.value) || 0,
+                min_pressure: parseFloat(form.querySelector('#edit_min_pressure')?.value) || 0
             };
             if (!validateDroneData(formData, false)) return;
 
@@ -647,9 +647,9 @@ function validateDroneData(data, isCreate = false) {
     if (!nameToCheck) errors.push('• Укажите название дрона');
     if (!data.model) errors.push('• Укажите модель дрона');
     if (isNaN(data.weight) || data.weight <= 0) errors.push('• Некорректный вес (должен быть > 0)');
-    if (isNaN(data.max_height) || data.max_height <= 0) errors.push('• Некорректная макс. высота (должна быть > 0)');
-    if (isNaN(data.max_temperature)) errors.push('• Некорректная макс. температура (должна быть числом)');
-    if (isNaN(data.max_altitude) || data.max_altitude <= 0) errors.push('• Некорректное макс. давление/высота (должно быть > 0)');
+    if (isNaN(data.max_altitude) || data.max_altitude <= 0) errors.push('• Некорректная макс. высота (должна быть > 0)');
+    if (isNaN(data.min_temperature)) errors.push('• Некорректная макс. температура (должна быть числом)');
+    if (isNaN(data.min_pressure) || data.min_pressure <= 0) errors.push('• Некорректное макс. давление/высота (должно быть > 0)');
 
     if (errors.length > 0) {
         openModal('Пожалуйста, исправьте ошибки в форме:\n' + errors.join('\n'));

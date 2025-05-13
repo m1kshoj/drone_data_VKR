@@ -72,7 +72,7 @@ app.get('/drones', (req, res) => {
 // создание дрона
 app.post('/drones', (req, res) => {
     try {
-        const { name, model, weight, max_height, max_temperature, max_altitude } = req.body;
+        const { name, model, weight, max_altitude, min_temperature, min_pressure } = req.body;
 
         const existingDrone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
         if (existingDrone) {
@@ -81,9 +81,9 @@ app.post('/drones', (req, res) => {
 
         const result = db.prepare(`
             INSERT INTO Drone 
-            (name, model, weight, max_height, max_temperature, max_altitude, created_at, updated_at)
+            (name, model, weight, max_altitude, min_temperature, min_pressure, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(name, model, weight, max_height, max_temperature, max_altitude);
+        `).run(name, model, weight, max_altitude, min_temperature, min_pressure);
 
         res.status(201).json({ id: result.lastInsertRowid });
     } catch (error) {
@@ -133,7 +133,7 @@ app.get('/drones/:name', (req, res) => {
 app.put('/drones/:name', (req, res) => {
     try {
         const { name } = req.params;
-        const { newName, model, weight, max_height, max_temperature, max_altitude } = req.body;
+        const { newName, model, weight, max_altitude, min_temperature, min_pressure } = req.body;
 
         const existingDrone = db.prepare('SELECT * FROM Drone WHERE name = ?').get(name);
         if (!existingDrone) {
@@ -148,12 +148,12 @@ app.put('/drones/:name', (req, res) => {
                 name = ?, 
                 model = ?, 
                 weight = ?, 
-                max_height = ?, 
-                max_temperature = ?, 
-                max_altitude = ?,
+                max_altitude = ?, 
+                min_temperature = ?, 
+                min_pressure = ?,
                 updated_at = ?
             WHERE name = ?
-        `).run(newName, model, weight, max_height, max_temperature, max_altitude, now, name);
+        `).run(newName, model, weight, max_altitude, min_temperature, min_pressure, now, name);
 
         res.json({
             message: 'Дрон успешно обновлен',
@@ -174,9 +174,9 @@ app.get('/drones/:name', (req, res) => {
                 name,
                 model,
                 weight,
-                max_height,
-                max_temperature,
-                max_altitude 
+                max_altitude,
+                min_temperature,
+                min_pressure 
             FROM Drone 
             WHERE name = ?
         `).get(name);
