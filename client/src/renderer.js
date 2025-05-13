@@ -27,7 +27,7 @@ let appSettings = {
     heightAboveSea: 0,
     targetAltitude: INITIAL_TAKEOFF_ALTITUDE,
     lastUpdated: null,
-    voronoiPoints: [], // Crucial: Initialize for Voronoi points
+    voronoiPoints: []
 };
 
 // Глобальные переменные для данных графиков
@@ -228,6 +228,9 @@ let lastPlotlyUpdateTimeGraphs = 0;
 
 const PLOTLY_UPDATE_INTERVAL_TIME = 10;
 
+let selectedDroneDetails = null;
+let altitudeIndicator, temperatureIndicator, pressureIndicator;
+
 // Карточка дрона
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
@@ -287,9 +290,33 @@ function createDroneCard(drone) {
 
             if (!wasActive) {
                 this.classList.add('active');
-                const details = this.querySelector('.drone-details');
+                const detailsElement = this.querySelector('.drone-details');
                 await loadDroneDetails(drone.name, this);
-                details.style.maxHeight = `${details.scrollHeight}px`;
+                detailsElement.style.maxHeight = `${detailsElement.scrollHeight}px`;
+
+                currentDroneName = drone.name;
+                try {
+                    const response = await fetch(`http://localhost:3000/drones/${encodeURIComponent(drone.name)}`);
+                    if (response.ok) {
+                        selectedDroneDetails = await response.json();
+                        console.log('Selected drone:', currentDroneName, selectedDroneDetails);
+                        resetIndicators();
+                    } else {
+                        selectedDroneDetails = null;
+                        console.error('Could not fetch details for selected drone:', drone.name);
+                    }
+                } catch (error) {
+                    selectedDroneDetails = null;
+                    console.error('Error fetching details for selected drone:', error);
+                }
+
+            } else {
+                this.classList.remove('active');
+                this.querySelector('.drone-details').style.maxHeight = null;
+                currentDroneName = null;
+                selectedDroneDetails = null;
+                console.log('Drone deselected');
+                resetIndicators();
             }
         }
     });
@@ -315,6 +342,11 @@ async function loadDroneDetails(droneName, element) {
         setContent('.max-altitude', data.max_altitude ? `${data.max_altitude} м` : '-');
         setContent('.min-temperature', data.min_temperature ? `${data.min_temperature} °C` : '-');
         setContent('.min-pressure', data.min_pressure ? `${data.min_pressure} гПа` : '-');
+
+        if (currentDroneName === droneName) {
+            selectedDroneDetails = data;
+        }
+
     } catch (error) {
         console.error('Ошибка загрузки деталей:', error);
         const errorEl = element.querySelector('.error-message') || document.createElement('div');
@@ -326,7 +358,52 @@ async function loadDroneDetails(droneName, element) {
             details.innerHTML = '';
             details.appendChild(errorEl);
         }
+        if (currentDroneName === droneName) {
+            selectedDroneDetails = null;
+        }
     }
+}
+
+function checkAndUpdateIndicators(currentAltitude, currentTemperature, currentPressure) {
+    if (!selectedDroneDetails) {
+        resetIndicators();
+        return;
+    }
+
+    if (!altitudeIndicator) altitudeIndicator = document.getElementById('indicator-altitude');
+    if (!temperatureIndicator) temperatureIndicator = document.getElementById('indicator-temperature');
+    if (!pressureIndicator) pressureIndicator = document.getElementById('indicator-pressure');
+
+    if (!altitudeIndicator || !temperatureIndicator || !pressureIndicator) {
+        console.error("One or more indicators not found in the DOM.");
+        return;
+    }
+
+    let blinkAltitude = false;
+    let blinkTemperature = false;
+    let blinkPressure = false;
+
+    if (typeof selectedDroneDetails.max_altitude === 'number' && currentAltitude > selectedDroneDetails.max_altitude) {
+        blinkAltitude = true;
+    }
+
+    if (typeof selectedDroneDetails.min_temperature === 'number' && currentTemperature < selectedDroneDetails.min_temperature) {
+        blinkTemperature = true;
+    }
+
+    if (typeof selectedDroneDetails.min_pressure === 'number' && currentPressure < selectedDroneDetails.min_pressure) {
+        blinkPressure = true;
+    }
+
+    altitudeIndicator.classList.toggle('blinking', blinkAltitude);
+    temperatureIndicator.classList.toggle('blinking', blinkTemperature);
+    pressureIndicator.classList.toggle('blinking', blinkPressure);
+}
+
+function resetIndicators() {
+    if (altitudeIndicator) altitudeIndicator.classList.remove('blinking');
+    if (temperatureIndicator) temperatureIndicator.classList.remove('blinking');
+    if (pressureIndicator) pressureIndicator.classList.remove('blinking');
 }
 
 async function renderDrones() {
@@ -890,6 +967,7 @@ function toggleStartStop() {
         }
 
     } else {
+        resetIndicators();
         console.log("Полет на паузе.");
         startStopButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16">
@@ -1592,6 +1670,15 @@ async function updateAltitude(timestamp) {
             -(g * M) / (R * L)
         );
         const pressure = pressureBase / 100 + pressFluct;
+        if (isFlying && !isLanded) {
+            const currentFlightAltitude = parseFloat(altitude.toFixed(2));
+            const currentFlightTemperature = parseFloat(temperature.toFixed(2));
+            const currentFlightPressure = parseFloat(pressure.toFixed(2));
+
+            checkAndUpdateIndicators(currentFlightAltitude, currentFlightTemperature, currentFlightPressure);
+        } else {
+            resetIndicators();
+        }
 
         const t_graph = parseFloat(time.toFixed(1));
         altitudeData.x.push(t_graph);
@@ -1950,6 +2037,11 @@ function clearGraphs(confirmed = false) {
         droneAnimationFrameId = null;
     }
 
+    resetIndicators();
+    currentDroneName = null;
+    selectedDroneDetails = null;
+    document.querySelectorAll('.drone-item.active').forEach(item => item.classList.remove('active'));
+
     isSquareModeActive = false;
     currentSquarePathIndex = 0;
     isFlyingSquarePath = false;
@@ -2068,6 +2160,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initAltitudeGraph(true);
     initTemperatureGraph(true);
     initPressureGraph(true);
+    altitudeIndicator = document.getElementById('indicator-altitude');
+    temperatureIndicator = document.getElementById('indicator-temperature');
+    pressureIndicator = document.getElementById('indicator-pressure');
+    resetIndicators();
 
     const startStopBtn = document.getElementById('startStopButton');
     if (startStopBtn) startStopBtn.onclick = toggleStartStop;

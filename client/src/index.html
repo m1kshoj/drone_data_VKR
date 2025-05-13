@@ -67,6 +67,11 @@
         <div class="header">
             <h2>Данные о полёте</h2>
             <div class="header-buttons">
+                <div class="indicators">
+                    <div id="indicator-altitude" class="indicator" title="Высота превышена">A</div>
+                    <div id="indicator-temperature" class="indicator" title="Температура слишком низкая">T</div>
+                    <div id="indicator-pressure" class="indicator" title="Давление слишком низкое">P</div>
+                </div>
                 <button class="save-button" onclick="saveData()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-arrow-down" viewBox="0 0 16 16">
                         <path d="M8.5 6.5a.5.5 0 0 0-1 0v3.793L6.354 9.146a.5.5 0 1 0-.708.708l2 2a.5.5 0 0 0 .708 0l2-2a.5.5 0 0 0-.708-.708L8.5 10.293V6.5z"/>
