@@ -57,6 +57,12 @@ let pressureData = {
     line: {color: '#d62728', width: 2}
 };
 
+let warningsTriggered = {
+    altitude: false,
+    temperature: false,
+    pressure: false
+};
+
 let targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
 const BASE_ASCENT_RATE = 5.0;  // базовая скорость для более быстрого взлета на 250м
 const BASE_DESCENT_RATE = 4.0; // Базовая скорость снижения (м/с)
@@ -364,7 +370,7 @@ async function loadDroneDetails(droneName, element) {
     }
 }
 
-function checkAndUpdateIndicators(currentAltitude, currentTemperature, currentPressure) {
+function checkAndUpdateIndicators(currentAltitude, currentFlightTemperature, currentFlightPressure) {
     if (!selectedDroneDetails) {
         resetIndicators();
         return;
@@ -375,7 +381,6 @@ function checkAndUpdateIndicators(currentAltitude, currentTemperature, currentPr
     if (!pressureIndicator) pressureIndicator = document.getElementById('indicator-pressure');
 
     if (!altitudeIndicator || !temperatureIndicator || !pressureIndicator) {
-        console.error("One or more indicators not found in the DOM.");
         return;
     }
 
@@ -385,14 +390,16 @@ function checkAndUpdateIndicators(currentAltitude, currentTemperature, currentPr
 
     if (typeof selectedDroneDetails.max_altitude === 'number' && currentAltitude > selectedDroneDetails.max_altitude) {
         blinkAltitude = true;
+        warningsTriggered.altitude = true;
     }
 
-    if (typeof selectedDroneDetails.min_temperature === 'number' && currentTemperature < selectedDroneDetails.min_temperature) {
+    if (typeof selectedDroneDetails.min_temperature === 'number' && currentFlightTemperature < selectedDroneDetails.min_temperature) {
         blinkTemperature = true;
+        warningsTriggered.temperature = true;
     }
-
-    if (typeof selectedDroneDetails.min_pressure === 'number' && currentPressure < selectedDroneDetails.min_pressure) {
+    if (typeof selectedDroneDetails.min_pressure === 'number' && currentFlightPressure < selectedDroneDetails.min_pressure) {
         blinkPressure = true;
+        warningsTriggered.pressure = true;
     }
 
     altitudeIndicator.classList.toggle('blinking', blinkAltitude);
@@ -814,6 +821,7 @@ function toggleStartStop() {
 
     if (isFlying) {
         if (altitude <= 0.1) {
+            warningsTriggered = { altitude: false, temperature: false, pressure: false };
             if (isLanded) {
                 targetAltitude = appSettings.targetAltitude;
                 console.log(`Взлет на ${targetAltitude.toFixed(1)} м (с ранее приземленного состояния)`);
@@ -945,6 +953,7 @@ function toggleStartStop() {
                 dronePathBeforeLanding = null;
             }
         } else {
+            warningsTriggered = { altitude: false, temperature: false, pressure: false };
             console.log(`Возобновление полета в воздухе на высоте ${altitude.toFixed(1)} м`);
             targetAltitude = appSettings.targetAltitude;
             isAltitudeChanging = (Math.abs(altitude - targetAltitude) > 0.5);
@@ -2037,6 +2046,7 @@ function clearGraphs(confirmed = false) {
         droneAnimationFrameId = null;
     }
 
+    warningsTriggered = { altitude: false, temperature: false, pressure: false };
     resetIndicators();
     currentDroneName = null;
     selectedDroneDetails = null;
@@ -2119,6 +2129,291 @@ function clearGraphs(confirmed = false) {
     setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
     }, 50);
+}
+
+async function saveData() {
+    if (!selectedDroneDetails || !selectedDroneDetails.id) {
+        openModal('Пожалуйста, выберите дрон из списка перед сохранением полета.');
+        return;
+    }
+
+    if (time === 0 && (isLanded || !isFlying)) {
+        openModal('Нет данных для сохранения. Начните полет.');
+        return;
+    }
+
+    showFlightNamePrompt(async (flightName) => {
+        if (!flightName) {
+            openModal('Сохранение отменено: не указано имя полета.');
+            return;
+        }
+
+        const flightDuration = parseFloat(time.toFixed(1));
+        const maxAltitudeAchieved = altitudeData.y.length > 0 ? Math.max(...altitudeData.y) : 0;
+        const minTemperatureAchieved = temperatureData.y.length > 0 ? Math.min(...temperatureData.y) : null;
+        const minPressureAchieved = pressureData.y.length > 0 ? Math.min(...pressureData.y) : null;
+
+        let warningsString = "";
+        if (warningsTriggered.altitude) warningsString += "A";
+        if (warningsTriggered.temperature) warningsString += "T";
+        if (warningsTriggered.pressure) warningsString += "P";
+        if (warningsString === "") warningsString = "Нет";
+
+        try {
+            const locationImg = await Plotly.toImage('main-graph', {format: 'png', height: 400, width: 600});
+            const altitudeImg = await Plotly.toImage('altitude-graph', {format: 'png', height: 300, width: 400});
+            const tempImg = await Plotly.toImage('temperature-graph', {format: 'png', height: 300, width: 400});
+            const pressureImg = await Plotly.toImage('pressure-graph', {format: 'png', height: 300, width: 400});
+
+            const flightData = {
+                naming: flightName,
+                drone_id: selectedDroneDetails.id,
+                flight_time: flightDuration,
+                location_graph: locationImg,
+                altitude_graph: altitudeImg,
+                temperature_graph: tempImg,
+                pressure_graph: pressureImg,
+                max_flight_altitude: parseFloat(maxAltitudeAchieved.toFixed(2)),
+                min_flight_temperature: minTemperatureAchieved !== null ? parseFloat(minTemperatureAchieved.toFixed(2)) : null,
+                min_flight_pressure: minPressureAchieved !== null ? parseFloat(minPressureAchieved.toFixed(2)) : null,
+                warnings: warningsString
+            };
+
+            const response = await fetch('http://localhost:3000/flights', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(flightData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Неизвестная ошибка сервера при сохранении.' }));
+                throw new Error(errorData.error || `Ошибка ${response.status}`);
+            }
+
+            const result = await response.json();
+            openModal(`Полет "${flightName}" успешно сохранен!`);
+
+        } catch (error) {
+            console.error('Ошибка при сохранении данных полета:', error);
+            openModal(`Ошибка сохранения: ${error.message}`);
+        }
+    });
+}
+
+function showFlightNamePrompt(callback) {
+    const modalId = 'flightNamePromptModal';
+    let modal = document.getElementById(modalId);
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'modal active';
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3 class="modal-title">Сохранение полета</h3>
+            <div class="input-group">
+                <input type="text" id="flightNameInput" placeholder=" ">
+                <label for="flightNameInput">Название полета</label>
+            </div>
+            <div id="flightNameError" class="error-message" style="color: red; font-size: 0.9em; margin-top: -15px; margin-bottom: 10px; display: none;"></div>
+            <div class="modal-actions">
+                <button id="cancelFlightNameBtn" class="button-danger">Отмена</button>
+                <button id="confirmFlightNameBtn" class="button-success">Сохранить</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const flightNameInput = modal.querySelector('#flightNameInput');
+    const confirmBtn = modal.querySelector('#confirmFlightNameBtn');
+    const cancelBtn = modal.querySelector('#cancelFlightNameBtn');
+    const errorDiv = modal.querySelector('#flightNameError');
+
+    flightNameInput.value = `Полет ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    flightNameInput.focus();
+    flightNameInput.select();
+
+
+    const closeModalPrompt = () => {
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    };
+
+    confirmBtn.onclick = () => {
+        const name = flightNameInput.value.trim();
+        if (!name) {
+            errorDiv.textContent = 'Название полета не может быть пустым.';
+            errorDiv.style.display = 'block';
+            flightNameInput.focus();
+            return;
+        }
+        errorDiv.style.display = 'none';
+        closeModalPrompt();
+        callback(name);
+    };
+
+    cancelBtn.onclick = () => {
+        closeModalPrompt();
+        callback(null);
+    };
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModalPrompt();
+            callback(null);
+        }
+    });
+
+    flightNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            confirmBtn.click();
+        }
+    });
+}
+
+async function showFlights() {
+    let modal = document.getElementById('flightsModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'flightsModal';
+        modal.className = 'modal flight-log-modal';
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2>Сохраненные полёты</h2>
+                <button class="close-button" onclick="closeFlightsModal()">&times;</button>
+            </div>
+            <div class="search-bar-modal">
+                <input type="text" id="flightSearchInput" placeholder="Поиск по названию полёта..." oninput="filterFlights()">
+            </div>
+            <div id="flightsListContainer" class="flights-list-container">
+                <p>Загрузка полётов...</p>
+            </div>
+        </div>`;
+
+    modal.classList.add('active');
+    modal.querySelector('.close-button').addEventListener('click', closeFlightsModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeFlightsModal();
+        }
+    });
+
+
+    try {
+        const response = await fetch('http://localhost:3000/flights');
+        if (!response.ok) throw new Error('Не удалось загрузить список полётов');
+        const flights = await response.json();
+        renderFlightsList(flights);
+    } catch (error) {
+        console.error('Ошибка при загрузке полётов:', error);
+        const container = document.getElementById('flightsListContainer');
+        if (container) container.innerHTML = `<p>Ошибка загрузки: ${error.message}</p>`;
+    }
+}
+
+function closeFlightsModal() {
+    const modal = document.getElementById('flightsModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+}
+
+function renderFlightsList(flights) {
+    const container = document.getElementById('flightsListContainer');
+    if (!container) return;
+
+    if (flights.length === 0) {
+        container.innerHTML = '<p>Сохраненных полётов нет.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+    const ul = document.createElement('ul');
+    ul.className = 'flights-list';
+
+    flights.forEach(flight => {
+        const li = document.createElement('li');
+        li.className = 'flight-item';
+        li.dataset.flightName = flight.naming.toLowerCase();
+
+        li.innerHTML = `
+            <div class="flight-card">
+                <div class="flight-card-header">
+                    <h3>${flight.naming}</h3>
+                    <button class="delete-flight-btn" data-flight-id="${flight.id}" title="Удалить полет">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
+                            <path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5ZM11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H2.506a.58.58 0 0 0-.01 0H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1h-.995a.59.59 0 0 0-.01 0H11Zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5h9.916Zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47ZM8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5Z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="flight-card-body">
+                    <p><strong>Дрон:</strong> ${flight.drone_name || 'Неизвестный дрон'}</p>
+                    <p><strong>Дата:</strong> ${new Date(flight.created_at).toLocaleString()}</p>
+                    <p><strong>Время полета:</strong> ${flight.flight_time.toFixed(1)} сек</p>
+                    <p><strong>Макс. высота:</strong> ${flight.max_flight_altitude !== null ? flight.max_flight_altitude.toFixed(1) + ' м' : '-'}</p>
+                    <p><strong>Мин. температура:</strong> ${flight.min_flight_temperature !== null ? flight.min_flight_temperature.toFixed(1) + ' °C' : '-'}</p>
+                    <p><strong>Мин. давление:</strong> ${flight.min_flight_pressure !== null ? flight.min_flight_pressure.toFixed(1) + ' гПа' : '-'}</p>
+                    <p><strong>Предупреждения:</strong> ${flight.warnings || 'Нет'}</p>
+                    <div class="flight-graphs-preview">
+                        <div><p>Местоположение:</p><img src="${flight.location_graph}" alt="График местоположения"></div>
+                        <div><p>Высота:</p><img src="${flight.altitude_graph}" alt="График высоты"></div>
+                        <div><p>Температура:</p><img src="${flight.temperature_graph}" alt="График температуры"></div>
+                        <div><p>Давление:</p><img src="${flight.pressure_graph}" alt="График давления"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        ul.appendChild(li);
+    });
+    container.appendChild(ul);
+
+    document.querySelectorAll('.delete-flight-btn').forEach(button => {
+        button.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const flightId = event.currentTarget.dataset.flightId;
+            if (confirm(`Уверены, что хотите удалить полет с ID ${flightId}?`)) {
+                try {
+                    const response = await fetch(`http://localhost:3000/flights/${flightId}`, {
+                        method: 'DELETE'
+                    });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || `Ошибка сервера ${response.status}`);
+                    }
+                    openModal('Полет успешно удален.');
+                    showFlights();
+                } catch (error) {
+                    console.error('Ошибка удаления полета:', error);
+                    openModal(`Ошибка удаления: ${error.message}`);
+                }
+            }
+        });
+    });
+}
+
+function filterFlights() {
+    const searchInput = document.getElementById('flightSearchInput');
+    if (!searchInput) return;
+    const searchValue = searchInput.value.toLowerCase().trim();
+    const flightItems = document.querySelectorAll('#flightsListContainer .flight-item');
+
+    flightItems.forEach(item => {
+        const flightName = item.dataset.flightName || '';
+        if (flightName.includes(searchValue)) {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
 }
 
 // Функции подтверждения очистки

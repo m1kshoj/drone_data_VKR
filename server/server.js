@@ -7,7 +7,7 @@ const db = require('./db/db');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({limit: '50mb'}));
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -22,24 +22,13 @@ server.listen(PORT, () => {
 
 app.post('/launch/:id', (req, res) => {
     const droneId = req.params.id;
-    console.log(`Запуск дрона: ${droneId}`);
+    console.log(`Запуск дрона (симуляция): ${droneId}`);
 
     const droneData = db.prepare('SELECT * FROM Drone WHERE name = ?').get(droneId);
     if (!droneData) {
-        return res.status(404).json({ error: 'Дрон не найден в базе данных' });
+        return res.status(404).json({ error: 'Дрон не найден в базе данных для симуляции' });
     }
-
-    const drone = new Drone(droneId);
-    drones.set(droneId, drone);
-    drone.takeOff();
-
-    const flightTime = 0;
-    db.prepare(`
-        INSERT INTO Flight (drone_id, flight_time)
-        VALUES (?, ?)
-    `).run(droneData.id, flightTime);
-
-    res.sendStatus(200);
+    res.status(200).json({ message: 'Команда запуска (симуляция) принята.'});
 });
 
 wss.on('connection', (ws) => {
@@ -92,7 +81,7 @@ app.post('/drones', (req, res) => {
     }
 });
 
-// удалить дрона
+// удалить дрон
 app.delete('/drones/:name', (req, res) => {
     try {
         const { name } = req.params;
@@ -186,5 +175,92 @@ app.get('/drones/:name', (req, res) => {
         res.json(drone);
     } catch (error) {
         res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// Сохранение данных полёта
+app.post('/flights', (req, res) => {
+    try {
+        const {
+            naming,
+            drone_id,
+            flight_time,
+            location_graph,
+            altitude_graph,
+            temperature_graph,
+            pressure_graph,
+            max_flight_altitude,
+            min_flight_temperature,
+            min_flight_pressure,
+            warnings
+        } = req.body;
+
+        if (!naming || !drone_id || flight_time === undefined) {
+            return res.status(400).json({ error: 'Отсутствуют обязательные поля: название, ID дрона, время полета.' });
+        }
+
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+        const result = db.prepare(`
+            INSERT INTO Flight (
+                naming, drone_id, flight_time, location_graph, altitude_graph,
+                temperature_graph, pressure_graph, max_flight_altitude,
+                min_flight_temperature, min_flight_pressure, warnings, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            naming, drone_id, flight_time, location_graph, altitude_graph,
+            temperature_graph, pressure_graph, max_flight_altitude,
+            min_flight_temperature, min_flight_pressure, warnings, now, now
+        );
+
+        res.status(201).json({ id: result.lastInsertRowid, message: 'Полет успешно сохранен.' });
+    } catch (error) {
+        console.error('Ошибка при сохранении полета:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера при сохранении полета.' });
+    }
+});
+
+// Получение списка всех полётов
+app.get('/flights', (req, res) => {
+    try {
+        const flights = db.prepare(`
+            SELECT
+                f.id,
+                f.naming,
+                d.name as drone_name, 
+                f.flight_time,
+                f.location_graph,
+                f.altitude_graph,
+                f.temperature_graph,
+                f.pressure_graph,
+                f.max_flight_altitude,
+                f.min_flight_temperature,
+                f.min_flight_pressure,
+                f.warnings,
+                strftime('%Y-%m-%d %H:%M:%S', f.created_at) as created_at
+            FROM Flight f
+            JOIN Drone d ON f.drone_id = d.id
+            ORDER BY f.created_at DESC
+        `).all();
+        res.json(flights);
+    } catch (error) {
+        console.error('Ошибка при получении списка полетов:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера при получении списка полетов.' });
+    }
+});
+
+// Удаление полёта по ID
+app.delete('/flights/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = db.prepare('DELETE FROM Flight WHERE id = ?').run(id);
+
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Полет не найден.' });
+        }
+        res.status(200).json({ message: 'Полет успешно удален.' });
+    } catch (error) {
+        console.error('Ошибка при удалении полета:', error);
+        res.status(500).json({ error: 'Внутренняя ошибка сервера при удалении полета.' });
     }
 });

@@ -12,7 +12,7 @@ db.prepare(`
         weight REAL NOT NULL,
         max_altitude REAL NOT NULL,
         min_temperature REAL NOT NULL,
-        min_altitude REAL NOT NULL,
+        min_pressure REAL NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -25,9 +25,9 @@ db.prepare(`
         drone_id INTEGER NOT NULL,
         flight_time REAL NOT NULL,
         location_graph BLOB,
-        height_graph BLOB,
-        temperature_graph BLOB,
         altitude_graph BLOB,
+        temperature_graph BLOB,
+        pressure_graph BLOB,
         max_flight_altitude REAL,
         min_flight_temperature REAL,
         min_flight_pressure REAL,

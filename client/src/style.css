@@ -1165,3 +1165,184 @@ body.dark-theme {
 .drone-item.active .drone-name {
     font-weight: bold;
 }
+
+/* Стили для окна сохранённых полётов */
+.flight-log-modal .modal-content.large {
+    max-width: 90%;
+    width: auto;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.flight-log-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 15px;
+}
+
+body.dark-theme .flight-log-modal .modal-header {
+    border-bottom-color: #444;
+}
+
+.flight-log-modal .close-button {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: #888;
+    padding: 0;
+    line-height: 1;
+}
+body.dark-theme .flight-log-modal .close-button {
+    color: #ccc;
+}
+.flight-log-modal .close-button:hover {
+    color: #333;
+    transform: none;
+}
+body.dark-theme .flight-log-modal .close-button:hover {
+    color: #fff;
+}
+
+
+.search-bar-modal {
+    margin-bottom: 20px;
+}
+
+.search-bar-modal input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+body.dark-theme .search-bar-modal input {
+    background-color: #2d2d2d;
+    border-color: #555;
+    color: #fff;
+}
+
+.flights-list-container {
+    overflow-y: auto;
+    flex-grow: 1;
+    padding-right: 10px;
+}
+
+.flights-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.flight-item {
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: box-shadow 0.3s ease;
+}
+.flight-item:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+body.dark-theme .flight-item {
+    border-color: #444;
+    background-color: #3a3a3a;
+}
+
+.flight-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+.flight-card-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+}
+body.dark-theme .flight-card-header {
+    background-color: #303030;
+    border-bottom-color: #444;
+}
+body.dark-theme .flight-card-header h3 {
+    color: #eee;
+}
+
+.delete-flight-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.delete-flight-btn:hover {
+    background-color: #c82333;
+    transform: scale(1.05);
+}
+.delete-flight-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.flight-card-body {
+    padding: 15px;
+}
+.flight-card-body p {
+    margin: 0 0 8px 0;
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+.flight-card-body p strong {
+    color: #555;
+}
+body.dark-theme .flight-card-body p strong {
+    color: #bbb;
+}
+
+.flight-graphs-preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+.flight-graphs-preview div {
+    border: 1px solid #eee;
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+}
+.flight-graphs-preview div p {
+    font-size: 0.8em;
+    margin-bottom: 5px;
+    color: #777;
+}
+body.dark-theme .flight-graphs-preview div {
+    border-color: #4f4f4f;
+}
+body.dark-theme .flight-graphs-preview div p {
+    color: #aaa;
+}
+
+.flight-graphs-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 3px;
+    background-color: #fff;
+}
+body.dark-theme .flight-graphs-preview img {
+    background-color: #505050;
+}
