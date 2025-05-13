@@ -19,6 +19,7 @@ db.prepare(`
 db.prepare(`
     CREATE TABLE IF NOT EXISTS Flight (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        naming TEXT NOT NULL, 
         drone_id INTEGER NOT NULL,
         flight_time REAL NOT NULL,
         location_graph BLOB,
