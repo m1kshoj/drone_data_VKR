@@ -1455,26 +1455,22 @@ function updateDronePosition(timestamp) {
 
         const mainGraphDiv = document.getElementById('main-graph');
         if (mainGraphDiv && mainGraphDiv.layout && mainGraphDiv.layout.xaxis && mainGraphDiv.layout.yaxis) {
-            if (!isCellularDecompositionModeActive) {
-                const currentLayout = mainGraphDiv.layout;
-                const xRange = currentLayout.xaxis.range;
-                const yRange = currentLayout.yaxis.range;
-                const padding = 20;
-                let newXRange = [...xRange];
-                let newYRange = [...yRange];
-                if (x < xRange[0] + padding / 2 || x > xRange[1] - padding / 2 ||
-                    y < yRange[0] + padding / 2 || y > yRange[1] - padding / 2 ||
-                    xRange[1] - xRange[0] < 2 * padding || yRange[1] - yRange[0] < 2 * padding) {
-                    const targetXSpan = Math.max(Math.abs(x) * 0.4 + 2 * padding, 100);
-                    const targetYSpan = Math.max(Math.abs(y) * 0.4 + 2 * padding, 100);
-                    newXRange = [x - targetXSpan / 2, x + targetXSpan / 2];
-                    newYRange = [y - targetYSpan / 2, y + targetYSpan / 2];
-                    Plotly.relayout('main-graph', {
-                        'xaxis.range': newXRange,
-                        'yaxis.range': newYRange
-                    }).catch(e => console.error("Ошибка авто-масштабирования:", e));
-                }
-            }
+            const currentLayout = document.getElementById('main-graph').layout;
+            const xRange = currentLayout.xaxis.range;
+            const yRange = currentLayout.yaxis.range;
+            const padding = 10;
+            const newXRange = [
+                Math.min(x - padding, xRange[0], -padding),
+                Math.max(x + padding, xRange[1], padding)
+            ];
+            const newYRange = [
+                Math.min(y - padding, yRange[0], -padding),
+                Math.max(y + padding, yRange[1], padding)
+            ];
+            Plotly.relayout('main-graph', {
+                'xaxis.range': newXRange,
+                'yaxis.range': newYRange
+            });
         }
     }
     droneAnimationFrameId = requestAnimationFrame(updateDronePosition);
