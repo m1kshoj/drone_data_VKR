@@ -238,6 +238,8 @@ let altitudeIndicator, temperatureIndicator, pressureIndicator;
 
 let isSimulationActive = false;
 
+let allFlightsData = null;
+
 // Карточка дрона
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
@@ -2424,24 +2426,39 @@ async function showFlights() {
             </div>
         </div>`;
 
-    modal.classList.add('active');
-    modal.querySelector('.close-button').addEventListener('click', closeFlightsModal);
+    setTimeout(() => modal.classList.add('active'), 50);
+
+    const closeButton = modal.querySelector('.close-button');
+    if (closeButton) {
+        closeButton.addEventListener('click', closeFlightsModal);
+    }
+
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             closeFlightsModal();
         }
     });
 
+    const flightsListContainer = document.getElementById('flightsListContainer');
 
     try {
-        const response = await fetch('http://localhost:3000/flights');
-        if (!response.ok) throw new Error('Не удалось загрузить список полётов');
-        const flights = await response.json();
-        renderFlightsList(flights);
+        if (allFlightsData !== null) {
+            renderFlightsList(allFlightsData);
+        } else {
+            console.log('Данные о полетах не были предварительно загружены или загрузка не удалась, загрузка при открытии модального окна...');
+            const response = await fetch('http://localhost:3000/flights');
+            if (!response.ok) {
+                throw new Error(`Не удалось загрузить список полётов: ${response.status}`);
+            }
+            const flights = await response.json();
+            allFlightsData = flights;
+            renderFlightsList(flights);
+        }
     } catch (error) {
-        console.error('Ошибка при загрузке полётов:', error);
-        const container = document.getElementById('flightsListContainer');
-        if (container) container.innerHTML = `<p>Ошибка загрузки: ${error.message}</p>`;
+        console.error('Ошибка при загрузке полётов (в showFlights):', error);
+        if (flightsListContainer) {
+            flightsListContainer.innerHTML = `<p>Ошибка загрузки: ${error.message}</p>`;
+        }
     }
 }
 
@@ -2568,6 +2585,22 @@ function filterFlights() {
     });
 }
 
+async function loadFlightsOnStartup() {
+    try {
+        const response = await fetch('http://localhost:3000/flights');
+        if (!response.ok) {
+            console.error(`Ошибка HTTP при фоновой загрузке полетов: ${response.status}`);
+            allFlightsData = null;
+            return;
+        }
+        allFlightsData = await response.json();
+        console.log('Данные о полетах успешно загружены при запуске (в фоне).');
+    } catch (error) {
+        console.error('Ошибка при фоновой загрузке полётов:', error);
+        allFlightsData = null;
+    }
+}
+
 // Функции подтверждения очистки
 function showClearConfirmation() {
     const modal = document.getElementById('modal');
@@ -2603,6 +2636,12 @@ function handleClearConfirmation(confirmed) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterDrones);
+    }
+    loadDrones();
+    loadFlightsOnStartup();
 
     initMainGraph(true);
     initAltitudeGraph(true);
