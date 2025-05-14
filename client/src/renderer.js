@@ -1003,28 +1003,40 @@ function toggleStartStop() {
 function initOrUpdateGraph(graphId, data, layoutConfig, baseLayout = {}) {
     const graphDiv = document.getElementById(graphId);
     if (!graphDiv) {
-        console.error(`Элемент графика с ID "${graphId}" не найден.`);
+        console.error('Элемент графика с ID "' + graphId + '" не найден.');
         return;
     }
 
     const isDark = document.body.classList.contains('dark-theme');
-    const textColor = isDark ? '#ddd' : '#333';
-    const gridColor = isDark ? '#555' : '#ccc';
-    const zeroLineColor = isDark ? '#888' : '#aaa';
+    const textColor = isDark ? '#dddddd' : '#333333';
+    const gridColor = isDark ? '#555555' : '#cccccc';
+    const zeroLineColor = isDark ? '#888888' : '#aaaaaa';
+    const bgColor = isDark ? '#2e2e2e' : '#ffffff';
 
     const defaultLayout = {
-        plot_bgcolor: 'transparent',
-        paper_bgcolor: 'transparent',
-        font: {color: textColor, family: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'},
+        plot_bgcolor: bgColor,
+        paper_bgcolor: bgColor,
+        font: {
+            color: textColor,
+            family: '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        },
         xaxis: {
-            showgrid: true, gridcolor: gridColor, zerolinecolor: zeroLineColor,
-            color: textColor, zerolinewidth: 1, gridwidth: 1,
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: zeroLineColor,
+            color: textColor,
+            zerolinewidth: 1,
+            gridwidth: 1,
             titlefont: {size: 14},
             tickfont: {size: 12}
         },
         yaxis: {
-            showgrid: true, gridcolor: gridColor, zerolinecolor: zeroLineColor,
-            color: textColor, zerolinewidth: 1, gridwidth: 1,
+            showgrid: true,
+            gridcolor: gridColor,
+            zerolinecolor: zeroLineColor,
+            color: textColor,
+            zerolinewidth: 1,
+            gridwidth: 1,
             titlefont: {size: 14},
             tickfont: {size: 12}
         },
@@ -1036,7 +1048,7 @@ function initOrUpdateGraph(graphId, data, layoutConfig, baseLayout = {}) {
         ...baseLayout
     };
 
-    const mergeLayouts = (target, source) => {
+    function mergeLayouts(target, source) {
         for (const key of Object.keys(source)) {
             if (source[key] instanceof Object && key in target && target[key] instanceof Object) {
                 mergeLayouts(target[key], source[key]);
@@ -1045,10 +1057,47 @@ function initOrUpdateGraph(graphId, data, layoutConfig, baseLayout = {}) {
             }
         }
         return target;
-    };
+    }
 
     const finalLayout = mergeLayouts(JSON.parse(JSON.stringify(defaultLayout)), layoutConfig);
-    Plotly.react(graphId, data, finalLayout, plotlyConfig).catch(e => console.error(`Ошибка (${graphId}):`, e));
+
+    Plotly.react(graphId, data, finalLayout, plotlyConfig)
+        .catch(e => console.error('Ошибка при обновлении графика ' + graphId + ':', e));
+}
+
+plotlyConfig.modeBarButtonsToAdd = [{
+    name: 'Save as PNG (theme-aware)',
+    icon: Plotly.Icons.camera,
+    click: function(gd) {
+        saveGraph(gd.id, gd.id + '_export');
+    }
+}];
+
+// Обновление темы для всех графиков
+function updateGraphTheme() {
+    initMainGraph();
+    initAltitudeGraph();
+    initTemperatureGraph();
+    initPressureGraph();
+}
+
+// Функция сохранения графика с учётом текущей темы
+function saveGraph(graphId, filename = graphId) {
+    const isDark = document.body.classList.contains('dark-theme');
+    const bgColor = isDark ? '#2e2e2e' : '#ffffff';
+    const layoutUpdate = {
+        plot_bgcolor: bgColor,
+        paper_bgcolor: bgColor
+    };
+    const graphDiv = document.getElementById(graphId);
+    Plotly.downloadImage(graphDiv, {
+        format: 'png',
+        filename: filename,
+        width: 800,
+        height: 600,
+        scale: 1,
+        layout: layoutUpdate
+    });
 }
 
 
