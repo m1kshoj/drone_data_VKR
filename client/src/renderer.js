@@ -846,9 +846,9 @@ function updateUIState() {
     });
 
     const toDisableButtons = [
-        '#themeToggle',
-        '#settingsButton',
-        '#showFlightsButton',
+        '#theme-button',
+        '#settings-button',
+        '#flights-button',
         '.search-bar button'
     ];
 
