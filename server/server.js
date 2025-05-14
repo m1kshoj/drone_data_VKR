@@ -86,7 +86,11 @@ app.delete('/drones/:name', (req, res) => {
     try {
         const { name } = req.params;
 
-        db.prepare('DELETE FROM Flight WHERE drone_id = (SELECT id FROM Drone WHERE name = ?)').run(name);
+        const droneToDelete = db.prepare('SELECT id FROM Drone WHERE name = ?').get(name);
+        if (!droneToDelete) {
+            return res.status(404).json({ error: 'Дрон не найден для удаления' });
+        }
+        const droneIdToDelete = droneToDelete.id;
 
         const result = db.prepare('DELETE FROM Drone WHERE name = ?').run(name);
 
@@ -199,16 +203,22 @@ app.post('/flights', (req, res) => {
             return res.status(400).json({ error: 'Отсутствуют обязательные поля: название, ID дрона, время полета.' });
         }
 
+        const drone = db.prepare('SELECT name FROM Drone WHERE id = ?').get(drone_id);
+        if (!drone) {
+            return res.status(404).json({ error: 'Дрон для сохранения полета не найден.' });
+        }
+        const droneName = drone.name;
+
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
         const result = db.prepare(`
             INSERT INTO Flight (
-                naming, drone_id, flight_time, location_graph, altitude_graph,
+                naming, drone_id, drone_name, flight_time, location_graph, altitude_graph,
                 temperature_graph, pressure_graph, max_flight_altitude,
                 min_flight_temperature, min_flight_pressure, warnings, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
-            naming, drone_id, flight_time, location_graph, altitude_graph,
+            naming, drone_id, droneName, flight_time, location_graph, altitude_graph,
             temperature_graph, pressure_graph, max_flight_altitude,
             min_flight_temperature, min_flight_pressure, warnings, now, now
         );
@@ -227,7 +237,7 @@ app.get('/flights', (req, res) => {
             SELECT
                 f.id,
                 f.naming,
-                d.name as drone_name, 
+                f.drone_name,
                 f.flight_time,
                 f.location_graph,
                 f.altitude_graph,
@@ -239,7 +249,6 @@ app.get('/flights', (req, res) => {
                 f.warnings,
                 strftime('%Y-%m-%d %H:%M:%S', f.created_at) as created_at
             FROM Flight f
-            JOIN Drone d ON f.drone_id = d.id
             ORDER BY f.created_at DESC
         `).all();
         res.json(flights);

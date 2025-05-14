@@ -1,3 +1,4 @@
+// db.js
 const Database = require('better-sqlite3');
 const path = require('path');
 
@@ -21,8 +22,9 @@ db.prepare(`
 db.prepare(`
     CREATE TABLE IF NOT EXISTS Flight (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        naming TEXT NOT NULL, 
-        drone_id INTEGER NOT NULL,
+        naming TEXT NOT NULL,
+        drone_id INTEGER,
+        drone_name TEXT NOT NULL,
         flight_time REAL NOT NULL,
         location_graph BLOB,
         altitude_graph BLOB,
@@ -34,7 +36,7 @@ db.prepare(`
         warnings TEXT,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
-        FOREIGN KEY (drone_id) REFERENCES Drone(id) ON DELETE CASCADE
+        FOREIGN KEY (drone_id) REFERENCES Drone(id) ON DELETE SET NULL
     )
 `).run();
 

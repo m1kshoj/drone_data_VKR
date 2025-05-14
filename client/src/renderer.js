@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function deleteDrone(name) {
     currentDroneName = name;
     try {
-        const response = await fetch('confirm-delete-modal.html');
+        const response = await fetch('confirm-delete-drone-modal.html');
         if (!response.ok) throw new Error('Не удалось загрузить форму подтверждения удаления');
         const modalContent = await response.text();
         const modal = document.getElementById('modal');
