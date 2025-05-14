@@ -2792,14 +2792,20 @@ function createPointInputSectionHTML(modePrefix, title) {
             `;
     } else {
         section.innerHTML = `
-            <h5 class="section-title">Координаты для "${title}"</h5>
-            <div class="point-input-controls">
-                <input type="number" id="${modePrefix}_x_input" placeholder="X">
-                <input type="number" id="${modePrefix}_y_input" placeholder="Y">
-                <button type="button" id="add_${modePrefix}_point_btn" class="button-primary">Добавить</button>
+            <div class="voronoi-content-wrapper">
+                <h5 class="section-title">Координаты для "${title}"</h5>
+                <div class="point-input-controls">
+                    <input type="number" id="${modePrefix}_x_input" placeholder="X">
+                    <input type="number" id="${modePrefix}_y_input" placeholder="Y">
+                    <button type="button" id="add_${modePrefix}_point_btn" class="button-primary">Добавить</button>
+                </div>
+                <div class="scrollable-points-container">
+                    <div id="${modePrefix}_points_list" class="points-list"></div>
+                </div>
+                <div class="clear-button-container">
+                    <button type="button" id="clear_${modePrefix}_points_btn" class="button-danger">Очистить все точки</button>
+                </div>
             </div>
-            <div id="${modePrefix}_points_list" class="points-list"></div>
-            <button type="button" id="clear_${modePrefix}_points_btn" class="button-danger">Очистить все точки</button>
         `;
     }
     return section;

@@ -1200,6 +1200,35 @@ body:not(.dark-theme) .point-input-section h5 {
     color: #2d3748;
 }
 
+.voronoi-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 10px;
+}
+
+.scrollable-points-container {
+    flex: 1;
+    min-height: 104px;
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: rgba(0,0,0,0.1);
+}
+
+.points-list {
+    padding: 8px;
+    min-height: 40px;
+    box-sizing: border-box;
+}
+
+.clear-button-container {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 0px;
+}
+
 /* Темная тема для полей ввода */
 body.dark-theme .settings-modal .input-group input {
     background-color: #333;
