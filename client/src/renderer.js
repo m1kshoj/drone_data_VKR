@@ -2842,14 +2842,20 @@ function updateSettingsFields() {
     const voronoiSettingsSection = modal.querySelector('#voronoi_settings_section');
     const cellsSettingsSection = modal.querySelector('#cells_settings_section');
 
+    if (voronoiSettingsSection) {
+        voronoiSettingsSection.classList.remove('active-sub-modal');
+        voronoiSettingsSection.style.maxHeight = null;
+    }
+    if (cellsSettingsSection) {
+        cellsSettingsSection.classList.remove('active-sub-modal');
+        cellsSettingsSection.style.maxHeight = null;
+    }
+
     allModeButtons.forEach(btn => btn.classList.remove(activeModeButtonClass));
     allModeButtons.forEach(btn => btn.disabled = false);
 
-    if (voronoiSettingsSection) voronoiSettingsSection.style.display = 'none';
-    if (cellsSettingsSection) cellsSettingsSection.style.display = 'none';
-
-
     let aModeIsActive = false;
+
     if (isSquareModeActive) {
         if (squareBtn) squareBtn.classList.add(activeModeButtonClass);
         aModeIsActive = true;
@@ -2858,14 +2864,44 @@ function updateSettingsFields() {
         aModeIsActive = true;
     } else if (isVoronoiModeActive) {
         if (voronoiBtn) voronoiBtn.classList.add(activeModeButtonClass);
-        if (voronoiSettingsSection) voronoiSettingsSection.style.display = 'block';
-        renderPointsList('voronoi', Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []);
+        if (voronoiSettingsSection) {
+            voronoiSettingsSection.style.display = 'block';
+            setTimeout(() => {
+                voronoiSettingsSection.classList.add('active-sub-modal');
+                voronoiSettingsSection.style.maxHeight = voronoiSettingsSection.scrollHeight + "px";
+            }, 10);
+            renderPointsList('voronoi', Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []);
+        }
         aModeIsActive = true;
     } else if (isCellularDecompositionModeActive) {
         if (cellsBtn) cellsBtn.classList.add(activeModeButtonClass);
-        if (cellsSettingsSection) cellsSettingsSection.style.display = 'block';
-        renderCellularEndpoint();
+        if (cellsSettingsSection) {
+            cellsSettingsSection.style.display = 'block';
+            setTimeout(() => {
+                cellsSettingsSection.classList.add('active-sub-modal');
+                cellsSettingsSection.style.maxHeight = cellsSettingsSection.scrollHeight + "px";
+            }, 10);
+            renderCellularEndpoint();
+        }
         aModeIsActive = true;
+    }
+
+    const animationDuration = 300;
+
+    if (!isVoronoiModeActive && voronoiSettingsSection) {
+        setTimeout(() => {
+            if (!isVoronoiModeActive && voronoiSettingsSection) {
+                voronoiSettingsSection.style.display = 'none';
+            }
+        }, animationDuration);
+    }
+
+    if (!isCellularDecompositionModeActive && cellsSettingsSection) {
+        setTimeout(() => {
+            if (!isCellularDecompositionModeActive && cellsSettingsSection) {
+                cellsSettingsSection.style.display = 'none';
+            }
+        }, animationDuration);
     }
 
     if (aModeIsActive) {

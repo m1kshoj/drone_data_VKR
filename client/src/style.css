@@ -1074,6 +1074,93 @@ body.dark-theme {
     }
 }
 
+/* Анимации для метода вороного и клеточной декомпозиции */
+.point-input-section {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, margin-top 0.3s ease-out, padding-top 0.3s ease-out, padding-bottom 0.3s ease-out;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top: none;
+    border-bottom: none;
+}
+
+.point-input-section.active-sub-modal {
+    opacity: 1;
+    margin-top: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border: 1px solid #ccc;
+}
+
+body.dark-theme .point-input-section.active-sub-modal {
+    border: 1px solid #555;
+}
+
+#voronoi_settings_section {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+#voronoi_settings_section.active-sub-modal {
+    border: none !important;
+    padding: 10px 0 !important;
+}
+
+
+#cells_settings_section {
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+#cells_settings_section.active-sub-modal {
+    border: none !important;
+    padding: 10px 0 !important;
+}
+
+#cells_endpoint_display {
+    background-color: transparent !important;
+}
+
+.point-input-controls input[type="number"] {
+    flex-grow: 1;
+    width: 70px;
+    padding: 8px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #fff;
+    border-radius: 4px;
+}
+
+body:not(.dark-theme) .point-input-controls input[type="number"] {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    color: #212529;
+}
+
+body:not(.dark-theme) .point-input-controls input[type="number"]:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+body:not(.dark-theme) .points-list {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    color: #212529;
+}
+body:not(.dark-theme) .points-list div {
+    border-bottom: 1px solid #eee;
+}
+body:not(.dark-theme) .points-list div:last-child {
+    border-bottom: none;
+}
+
+body:not(.dark-theme) .point-input-section h5 {
+    color: #2d3748;
+}
+
 /* Темная тема для полей ввода */
 body.dark-theme .settings-modal .input-group input {
     background-color: #333;
