@@ -1306,7 +1306,7 @@ body.dark-theme {
 
 /* Стили для окна сохранённых полётов */
 .flight-log-modal .modal-content.large {
-    max-width: 90%;
+    max-width: 95%;
     width: auto;
     max-height: 90vh;
     display: flex;
@@ -1398,12 +1398,12 @@ body.dark-theme .flight-item {
 .flight-card-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 10px 15px;
-    background-color: #f0f0f0;
-    border-bottom: 1px solid #ddd;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    align-items: center; 
+    padding: 10px 15px; 
+    background-color: #f0f0f0; 
+    border-bottom: 1px solid #ddd; 
+    border-top-left-radius: 8px; 
+    border-top-right-radius: 8px; 
 }
 .flight-card-header h3 {
     margin: 0;
@@ -1415,6 +1415,66 @@ body.dark-theme .flight-card-header {
 }
 body.dark-theme .flight-card-header h3 {
     color: #eee;
+}
+
+
+.flight-card-content-wrapper {
+    display: flex;
+    padding: 15px;
+    gap: 20px;
+}
+
+.flight-card-body {
+    flex: 1;
+}
+.flight-card-body p {
+    margin: 0 0 8px 0; 
+    font-size: 0.95em; 
+    line-height: 1.4; 
+}
+.flight-card-body p strong {
+    color: #555; 
+}
+body.dark-theme .flight-card-body p strong {
+    color: #bbb;
+}
+
+.flight-graphs-preview {
+    flex: 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+}
+.flight-graphs-preview div {
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    background-color: #fff;
+}
+body.dark-theme .flight-graphs-preview div {
+    border-color: #4f4f4f;
+    background-color: #2d2d2d;
+}
+
+.flight-graphs-preview div p {
+    font-size: 0.8em;
+    margin-bottom: 8px;
+    color: #777;
+}
+
+body.dark-theme .flight-graphs-preview div p {
+    color: #aaa;
+}
+
+.flight-graphs-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 3px;
+    border: 1px solid #ccc;
+}
+body.dark-theme .flight-graphs-preview img {
+    border-color: #555;
 }
 
 .delete-flight-btn {
@@ -1435,53 +1495,4 @@ body.dark-theme .flight-card-header h3 {
 .delete-flight-btn svg {
     width: 14px;
     height: 14px;
-}
-
-.flight-card-body {
-    padding: 15px;
-}
-.flight-card-body p {
-    margin: 0 0 8px 0;
-    font-size: 0.95em;
-    line-height: 1.4;
-}
-.flight-card-body p strong {
-    color: #555;
-}
-body.dark-theme .flight-card-body p strong {
-    color: #bbb;
-}
-
-.flight-graphs-preview {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 15px;
-}
-.flight-graphs-preview div {
-    border: 1px solid #eee;
-    padding: 5px;
-    border-radius: 4px;
-    text-align: center;
-}
-.flight-graphs-preview div p {
-    font-size: 0.8em;
-    margin-bottom: 5px;
-    color: #777;
-}
-body.dark-theme .flight-graphs-preview div {
-    border-color: #4f4f4f;
-}
-body.dark-theme .flight-graphs-preview div p {
-    color: #aaa;
-}
-
-.flight-graphs-preview img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 3px;
-    background-color: #fff;
-}
-body.dark-theme .flight-graphs-preview img {
-    background-color: #505050;
 }

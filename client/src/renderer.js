@@ -2160,11 +2160,84 @@ async function saveData() {
         if (warningsTriggered.pressure) warningsString += "P";
         if (warningsString === "") warningsString = "Нет";
 
+        const isCurrentlyDarkTheme = document.body.classList.contains('dark-theme');
+
+        const lightThemeLayoutColors = {
+            fontColor: '#000000',
+            axisLineColor: '#888888',
+            gridColor: '#cccccc',
+            paper_bgcolor: '#ffffff',
+            plot_bgcolor: '#ffffff'
+        };
+
+        const darkThemeLayoutColors = {
+            fontColor: '#ffffff',
+            axisLineColor: '#888888',
+            gridColor: '#555555',
+            paper_bgcolor: '#1a1a1a',
+            plot_bgcolor: '#2d2d2d'
+        };
+
+        const saveLayoutColors = isCurrentlyDarkTheme ? lightThemeLayoutColors : darkThemeLayoutColors;
+
+
+        const commonLayoutAdditions = {
+            font: { color: saveLayoutColors.fontColor },
+            paper_bgcolor: saveLayoutColors.paper_bgcolor,
+            plot_bgcolor: saveLayoutColors.plot_bgcolor,
+            xaxis: {
+                color: saveLayoutColors.fontColor,
+                linecolor: saveLayoutColors.axisLineColor,
+                gridcolor: saveLayoutColors.gridColor,
+                zerolinecolor: saveLayoutColors.axisLineColor
+            },
+            yaxis: {
+                color: saveLayoutColors.fontColor,
+                linecolor: saveLayoutColors.axisLineColor,
+                gridcolor: saveLayoutColors.gridColor,
+                zerolinecolor: saveLayoutColors.axisLineColor
+            }
+        };
+
+        const titleFontLayout = {
+            titlefont: { color: saveLayoutColors.fontColor },
+            xaxis: {
+                color: saveLayoutColors.fontColor,
+                linecolor: saveLayoutColors.axisLineColor,
+                gridcolor: saveLayoutColors.gridColor,
+                zerolinecolor: saveLayoutColors.axisLineColor,
+                titlefont: { color: saveLayoutColors.fontColor }
+            },
+            yaxis: {
+                color: saveLayoutColors.fontColor,
+                linecolor: saveLayoutColors.axisLineColor,
+                gridcolor: saveLayoutColors.gridColor,
+                zerolinecolor: saveLayoutColors.axisLineColor,
+                titlefont: { color: saveLayoutColors.fontColor }
+            }
+        };
+
+
         try {
-            const locationImg = await Plotly.toImage('main-graph', {format: 'png', height: 400, width: 600});
-            const altitudeImg = await Plotly.toImage('altitude-graph', {format: 'png', height: 300, width: 400});
-            const tempImg = await Plotly.toImage('temperature-graph', {format: 'png', height: 300, width: 400});
-            const pressureImg = await Plotly.toImage('pressure-graph', {format: 'png', height: 300, width: 400});
+            const locationLayout = JSON.parse(JSON.stringify(document.getElementById('main-graph').layout || {}));
+            Object.assign(locationLayout, commonLayoutAdditions, titleFontLayout);
+            if (locationLayout.shapes) {
+                locationLayout.shapes.forEach(shape => {
+                    if (shape.type === 'line') {
+                        shape.line.color = saveLayoutColors.axisLineColor;
+                    }
+                });
+            }
+
+
+            const timeSeriesLayout = JSON.parse(JSON.stringify(document.getElementById('altitude-graph').layout || {}));
+            Object.assign(timeSeriesLayout, commonLayoutAdditions, titleFontLayout);
+
+
+            const locationImg = await Plotly.toImage('main-graph', { format: 'png', height: 400, width: 600, layout: locationLayout });
+            const altitudeImg = await Plotly.toImage('altitude-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
+            const tempImg = await Plotly.toImage('temperature-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
+            const pressureImg = await Plotly.toImage('pressure-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
 
             const flightData = {
                 naming: flightName,
@@ -2179,7 +2252,6 @@ async function saveData() {
                 min_flight_pressure: minPressureAchieved !== null ? parseFloat(minPressureAchieved.toFixed(2)) : null,
                 warnings: warningsString
             };
-
             const response = await fetch('http://localhost:3000/flights', {
                 method: 'POST',
                 headers: {
@@ -2331,7 +2403,6 @@ function closeFlightsModal() {
 function renderFlightsList(flights) {
     const container = document.getElementById('flightsListContainer');
     if (!container) return;
-
     if (flights.length === 0) {
         container.innerHTML = '<p>Сохраненных полётов нет.</p>';
         return;
@@ -2340,7 +2411,6 @@ function renderFlightsList(flights) {
     container.innerHTML = '';
     const ul = document.createElement('ul');
     ul.className = 'flights-list';
-
     flights.forEach(flight => {
         const li = document.createElement('li');
         li.className = 'flight-item';
@@ -2356,14 +2426,16 @@ function renderFlightsList(flights) {
                         </svg>
                     </button>
                 </div>
-                <div class="flight-card-body">
-                    <p><strong>Дрон:</strong> ${flight.drone_name || 'Неизвестный дрон'}</p>
-                    <p><strong>Дата:</strong> ${new Date(flight.created_at).toLocaleString()}</p>
-                    <p><strong>Время полета:</strong> ${flight.flight_time.toFixed(1)} сек</p>
-                    <p><strong>Макс. высота:</strong> ${flight.max_flight_altitude !== null ? flight.max_flight_altitude.toFixed(1) + ' м' : '-'}</p>
-                    <p><strong>Мин. температура:</strong> ${flight.min_flight_temperature !== null ? flight.min_flight_temperature.toFixed(1) + ' °C' : '-'}</p>
-                    <p><strong>Мин. давление:</strong> ${flight.min_flight_pressure !== null ? flight.min_flight_pressure.toFixed(1) + ' гПа' : '-'}</p>
-                    <p><strong>Предупреждения:</strong> ${flight.warnings || 'Нет'}</p>
+                <div class="flight-card-content-wrapper">
+                    <div class="flight-card-body">
+                        <p><strong>Дрон:</strong> ${flight.drone_name || 'Неизвестный дрон'}</p>
+                        <p><strong>Дата:</strong> ${new Date(flight.created_at).toLocaleString()}</p>
+                        <p><strong>Время полета:</strong> ${flight.flight_time.toFixed(1)} сек</p>
+                        <p><strong>Макс. высота:</strong> ${flight.max_flight_altitude !== null ? flight.max_flight_altitude.toFixed(1) + ' м' : '-'}</p>
+                        <p><strong>Мин. температура:</strong> ${flight.min_flight_temperature !== null ? flight.min_flight_temperature.toFixed(1) + ' °C' : '-'}</p>
+                        <p><strong>Мин. давление:</strong> ${flight.min_flight_pressure !== null ? flight.min_flight_pressure.toFixed(1) + ' гПа' : '-'}</p>
+                        <p><strong>Предупреждения:</strong> ${flight.warnings || 'Нет'}</p>
+                    </div>
                     <div class="flight-graphs-preview">
                         <div><p>Местоположение:</p><img src="${flight.location_graph}" alt="График местоположения"></div>
                         <div><p>Высота:</p><img src="${flight.altitude_graph}" alt="График высоты"></div>
@@ -2744,7 +2816,6 @@ function createPointInputSectionHTML(modePrefix, title) {
     section.id = `${modePrefix}_settings_section`;
     section.className = 'settings-section point-input-section';
     section.style.display = 'none';
-
     if (modePrefix === 'cells') {
         section.innerHTML = `
             <h5 class="section-title">Конечная точка для "${title}"</h5>
@@ -2754,8 +2825,7 @@ function createPointInputSectionHTML(modePrefix, title) {
                 <button type="button" id="set_${modePrefix}_endpoint_btn" class="button-primary">Установить точку</button>
             </div>
             <div id="${modePrefix}_endpoint_display" class="points-list" style="min-height: 30px;"></div>
-            <div id="${modePrefix}_endpoint_error" class="error-message" style="color: red; font-size: 0.9em; margin-top: 5px;"></div>
-        `;
+            `;
     } else {
         section.innerHTML = `
             <h5 class="section-title">Координаты для "${title}"</h5>
@@ -3207,22 +3277,19 @@ function renderCellularEndpoint() {
 function setCellularEndpoint() {
     const xInput = document.getElementById('cells_x_input');
     const yInput = document.getElementById('cells_y_input');
-    const errorDiv = document.getElementById('cells_endpoint_error');
-
-    if (!xInput || !yInput || !errorDiv) return;
+    if (!xInput || !yInput) return;
 
     const x = parseFloat(xInput.value);
     const y = parseFloat(yInput.value);
 
-    errorDiv.textContent = '';
 
     if (isNaN(x) || isNaN(y)) {
-        errorDiv.textContent = 'Пожалуйста, введите корректные числовые значения для X и Y.';
+        openModal('Пожалуйста, введите корректные числовые значения для X и Y.');
         return;
     }
 
     if (x > -10 && x < 10 && y > -10 && y < 10) {
-        errorDiv.textContent = 'Конечная точка не может быть в диапазоне (X: от -10 до 10, Y: от -10 до 10).';
+        openModal('Конечная точка не может быть в диапазоне (X: от -10 до 10, Y: от -10 до 10).');
         appSettings.cellularEndPoint = {x: null, y: null};
     } else {
         appSettings.cellularEndPoint = {x, y};
