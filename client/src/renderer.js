@@ -2381,25 +2381,52 @@ function renderFlightsList(flights) {
         button.addEventListener('click', async (event) => {
             event.stopPropagation();
             const flightId = event.currentTarget.dataset.flightId;
-            if (confirm(`Уверены, что хотите удалить полет с ID ${flightId}?`)) {
-                try {
-                    const response = await fetch(`http://localhost:3000/flights/${flightId}`, {
-                        method: 'DELETE'
-                    });
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || `Ошибка сервера ${response.status}`);
-                    }
-                    openModal('Полет успешно удален.');
-                    showFlights();
-                } catch (error) {
-                    console.error('Ошибка удаления полета:', error);
-                    openModal(`Ошибка удаления: ${error.message}`);
-                }
-            }
+            showDeleteFlightConfirmation(flightId);
         });
     });
 }
+
+function showDeleteFlightConfirmation(flightId) {
+    const flightItem = document.querySelector(`.delete-flight-btn[data-flight-id="${flightId}"]`)?.closest('.flight-item');
+    const flightName = flightItem?.querySelector('h3')?.textContent || `с ID ${flightId}`;
+
+    const modal = document.getElementById('modal');
+    if (!modal) return;
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3 class="modal-title">Подтверждение удаления</h3>
+            <div class="modal-message">
+                Вы уверены, что хотите удалить полёт "${flightName}"? Это действие необратимо.
+            </div>
+            <div class="modal-actions">
+                <button class="cancel-btn" onclick="closeModal()">Отмена</button>
+                <button class="confirm-btn" onclick="confirmDeleteFlight(${flightId})">Удалить</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add('active');
+    modal.addEventListener('click', e => {
+        if (e.target === modal) closeModal();
+    });
+}
+
+async function confirmDeleteFlight(flightId) {
+    closeModalWithAnimation('modal', async () => {
+        try {
+            const response = await fetch(`http://localhost:3000/flights/${flightId}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({ error: 'Ошибка сервера' }));
+                throw new Error(err.error || `Ошибка ${response.status}`);
+            }
+            openModal('Полет успешно удален.');
+            showFlights();
+        } catch (error) {
+            openModal(`Ошибка удаления: ${error.message}`);
+        }
+    });
+}
+
 
 function filterFlights() {
     const searchInput = document.getElementById('flightSearchInput');

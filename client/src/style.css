@@ -375,7 +375,12 @@ body:not(.dark-theme) .graph {
     z-index: 1000;
 }
 
+#modal {
+    z-index: 1001;
+}
+
 .modal.active {
+    z-index: 1000;
     visibility: visible;
     opacity: 1;
     background-color: rgba(0, 0, 0, 0.5);
@@ -1306,6 +1311,7 @@ body.dark-theme {
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+    min-height: 300px;
 }
 
 .flight-log-modal .modal-header {
