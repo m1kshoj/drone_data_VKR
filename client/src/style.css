@@ -230,15 +230,49 @@ h2 {
 }
 
 .save-button {
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
     background-color: #28a745;
+    color: white;
+    cursor: pointer;
     width: 40px;
     height: 40px;
+    transition: background-color 0.3s ease, transform 0.2s ease !important;
+}
+
+.save-button:hover {
+    background-color: #218838;
+    transform: scale(1.05);
 }
 
 .save-button svg {
     width: 20px;
     height: 20px;
     fill: currentColor;
+}
+
+.remove-point-btn {
+    margin-left: 10px;
+    padding: 2px 8px !important;
+    font-size: 0.8em !important;
+
+}
+.button-danger.remove-point-btn:hover {
+    background: #c82333 !important;
+}
+.points-list div button {
+    margin-left: 10px;
+    padding: 2px 8px;
+    font-size: 0.8em;
+    background-color: #dc3545;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.points-list div button:hover {
+    background-color: #c82333;
 }
 
 /* Стили для графиков */
@@ -542,7 +576,7 @@ body:not(.dark-theme) .graph {
 }
 
 .button-danger {
-    background: #f56565;
+    background: #f56565 !important;
     color: white;
     padding: 0.8rem 2rem;
     border-radius: 0.5rem;
@@ -554,7 +588,7 @@ body:not(.dark-theme) .graph {
 }
 
 .button-danger:hover {
-    background: #e53e3e;
+    background: #e53e3e !important;
     transform: translateY(-1px);
     box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
 }
