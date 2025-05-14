@@ -1567,3 +1567,260 @@ button:disabled {
     cursor: pointer !important;
     pointer-events: auto !important;
 }
+
+/* Стили для кнопки информации */
+.indicator-info {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #555;
+    margin-left: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+    font-weight: bold;
+    border: 1px solid #777;
+    opacity: 0.5;
+}
+
+.info-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.info-button:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
+}
+
+.info-button svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+#infoModal .modal-content {
+    max-width: 841px;
+    text-align: left;
+}
+
+#infoModalMessage {
+    max-height: 70vh;
+    overflow-y: auto;
+    text-align: left;
+    padding-right: 15px;
+}
+
+#infoModalMessage ul {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    color: inherit;
+}
+
+body.dark-theme #infoModalMessage h4 {
+    color: #eee;
+}
+
+#infoModalMessage h4 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+#infoModalMessage li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    gap: 15px;
+}
+
+.info-button-representation-container {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: scale(0.85);
+    transform-origin: center center;
+    min-width: 60px;
+    margin-right: 5px;
+}
+
+.info-button-representation-container .button-danger,
+.info-button-representation-container .button-success,
+.info-button-representation-container .theme-toggle-button,
+.info-button-representation-container .save-button,
+.info-button-representation-container .info-button,
+.info-button-representation-container .drone-controls-button-style,
+.info-button-representation-container .actions {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+.search-bar-button-style,
+.drone-controls-button-style,
+.altitude-buttons-button-style,
+.sidebar-buttons-button-style {
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: inherit;
+}
+
+.info-button-representation-container .search-bar-button-style {
+    min-width: 40px;
+    font-size: 1.2em;
+}
+.info-button-representation-container .drone-controls-button-style svg{
+    width: 24px;
+    height: 24px;
+}
+
+.info-button-representation-container button.save-button {
+    width: 45px;
+    height: 45px;
+    background-color: #28a745;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    transform: none !important;
+}
+
+.info-button-representation-container button.save-button svg {
+    width: 18.82px !important;
+    height: 18.82px !important;
+    min-width: 18.82px !important;
+    min-height: 18.82px !important;
+    max-width: 18.82px !important;
+    max-height: 18.82px !important;
+    transform: none !important;
+    flex-shrink: 0;
+}
+.info-button-representation-container .save-button:hover {
+    background-color: #218838;
+}
+
+.info-button-representation-container .altitude-buttons-button-style {
+    flex: 1;
+    font-size: 16px;
+}
+.info-button-representation-container .sidebar-buttons-button-style {
+    flex: 1;
+    max-width: 120px;
+}
+
+#infoStartStopButton {
+    background-color: #28a745;
+}
+#infoStartStopButton:hover {
+    filter: brightness(90%);
+}
+
+#infoThemeButton {
+    background-color: #007bff;
+}
+#infoThemeButton .theme-icon {
+    fill: white !important;
+    position: absolute;
+}
+#infoThemeButton .theme-icon.sun {
+    opacity: 1;
+}
+#infoThemeButton .theme-icon.moon {
+    opacity: 0;
+}
+#infoThemeButton.dark-active .theme-icon.sun {
+    opacity: 0;
+}
+#infoThemeButton.dark-active .theme-icon.moon {
+    opacity: 1;
+}
+
+
+.info-description {
+    flex-grow: 1;
+    line-height: 1.5;
+    color: inherit;
+}
+
+body.dark-theme .info-description {
+    color: #ccc;
+}
+
+.info-button-representation-container .indicator {
+    transform: scale(0.9);
+}
+
+.info-button-representation-container .actions.edit {
+    background-color: #ffc107;
+}
+.info-button-representation-container .actions.edit:hover {
+    background-color: #e0a800;
+}
+.info-button-representation-container .actions.delete {
+    background-color: #dc3545;
+}
+.info-button-representation-container .actions.delete:hover {
+    background-color: #c82333;
+}
+
+.info-button-representation-container .actions svg {
+    fill: white;
+}
+
+.info-button-representation-container > button,
+.info-button-representation-container > div[class*="button"],
+.info-button-representation-container > div[class*="indicator"] {
+}
+
+.info-button-representation-container .drone-controls button {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+}
+.info-button-representation-container .search-bar button {
+    padding: 10px;
+    width: auto;
+    min-width: 40px;
+}
+.info-button-representation-container .actions button {
+    width: 30px;
+    height: 30px;
+}
+.info-button-representation-container .altitude-buttons button,
+.info-button-representation-container .sidebar-buttons button {
+    padding: 10px;
+    font-size: 1em;
+}
+
+
+.info-description {
+    flex-grow: 1;
+    line-height: 1.5;
+}
+
+.info-button-representation-container .theme-toggle-button .theme-icon.sun {
+    opacity: 1;
+    position: relative;
+}
+.info-button-representation-container .theme-toggle-button .theme-icon.moon {
+    opacity: 1;
+    position: relative;
+    margin-left: -2px;
+}

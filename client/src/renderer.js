@@ -3633,3 +3633,103 @@ function calculateCellularPath(startPos, targetPos) {
 
     return path;
 }
+
+// Логика для кнопки информации
+const SVG_ICON_PLAY = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16"><path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg>`;
+const SVG_ICON_PAUSE = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pause" viewBox="0 0 16 16"><path d="M6 3.5a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5zm4 0a.5.5 0 0 1 .5.5v8a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5z"/></svg>`;
+
+function setupInfoModalInteractions() {
+    const infoStartStopButton = document.getElementById('infoStartStopButton');
+    if (infoStartStopButton) {
+        infoStartStopButton.isRepresentationPlaying = true;
+        infoStartStopButton.innerHTML = SVG_ICON_PLAY;
+        infoStartStopButton.style.backgroundColor = '#28a745';
+
+        infoStartStopButton.addEventListener('click', () => {
+            infoStartStopButton.isRepresentationPlaying = !infoStartStopButton.isRepresentationPlaying;
+            if (infoStartStopButton.isRepresentationPlaying) {
+                infoStartStopButton.innerHTML = SVG_ICON_PLAY;
+                infoStartStopButton.style.backgroundColor = '#28a745';
+            } else {
+                infoStartStopButton.innerHTML = SVG_ICON_PAUSE;
+                infoStartStopButton.style.backgroundColor = '#dc3545';
+            }
+        });
+    }
+
+    const infoThemeButton = document.getElementById('infoThemeButton');
+    if (infoThemeButton) {
+        const isAppDarkTheme = document.body.classList.contains('dark-theme');
+        infoThemeButton.classList.toggle('dark-active', isAppDarkTheme);
+
+        infoThemeButton.addEventListener('click', () => {
+            infoThemeButton.classList.toggle('dark-active');
+        });
+    }
+}
+
+const originalOpenInfoModal = window.openInfoModal;
+window.openInfoModal = function() {
+    if (typeof originalOpenInfoModal === 'function') {
+        originalOpenInfoModal.call(this);
+    } else {
+        const modal = document.getElementById('infoModal');
+        if (modal) {
+            modal.classList.add('active');
+        }
+    }
+    setupInfoModalInteractions();
+};
+
+function openInfoModal() {
+    const modal = document.getElementById('infoModal');
+    if (modal) {
+        modal.classList.add('active');
+        const startStopRep = modal.querySelector('.info-button-representation-container #startStopButton svg');
+        if (startStopRep && startStopRep.classList.contains('bi-pause')) {
+            startStopRep.outerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16"><path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg>`;
+        }
+    }
+}
+
+function closeInfoModal() {
+    const modal = document.getElementById('infoModal');
+    if (modal) {
+        modal.classList.add('closing');
+        setTimeout(() => {
+            modal.classList.remove('active', 'closing');
+        }, 300);
+    }
+}
+
+window.addEventListener('click', function(event) {
+    const activeModals = document.querySelectorAll('.modal.active');
+    activeModals.forEach(modal => {
+        if (event.target === modal) {
+            if (modal.id === 'infoModal') closeInfoModal();
+            else if (modal.id === 'modal') closeModal(); // General modal
+            else if (modal.id === 'createDroneModal') closeCreateModal();
+            else if (modal.id === 'settingsModal') {
+                // Logic to revert settings or just close
+                const initialH = typeof appSettings !== 'undefined' ? appSettings.heightAboveSea : 0;
+                const initialT = typeof appSettings !== 'undefined' ? appSettings.targetAltitude : 3; // Assuming 3 is INITIAL_TAKEOFF_ALTITUDE
+                const initialVoronoiPoints = typeof appSettings !== 'undefined' && Array.isArray(appSettings.voronoiPoints) ? JSON.parse(JSON.stringify(appSettings.voronoiPoints)) : [];
+                const initialCellularEndPoint = typeof appSettings !== 'undefined' && appSettings.cellularEndPoint ? JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : { x: null, y: null };
+
+                if (typeof appSettings !== 'undefined') {
+                    appSettings.heightAboveSea = initialH;
+                    appSettings.targetAltitude = initialT;
+                    appSettings.voronoiPoints = initialVoronoiPoints;
+                    appSettings.cellularEndPoint = initialCellularEndPoint;
+                    if(typeof heightAboveSeaLevel !== 'undefined') heightAboveSeaLevel = initialH;
+                    if (typeof isFlying !== 'undefined' && isFlying && typeof isLanded !== 'undefined' && !isLanded && typeof targetAltitude !== 'undefined' && targetAltitude !== initialT) {
+                        targetAltitude = initialT;
+                        if(typeof isAltitudeChanging !== 'undefined') isAltitudeChanging = true;
+                    }
+                }
+                closeSettingsModal();
+            }
+            else if (modal.id === 'flightsModal') closeFlightsModal();
+        }
+    });
+});
