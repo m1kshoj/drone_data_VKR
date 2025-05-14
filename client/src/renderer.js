@@ -69,6 +69,9 @@ const BASE_DESCENT_RATE = 4.0; // Базовая скорость снижени
 const PLOTLY_UPDATE_INTERVAL = 10; // Обновлять Plotly не чаще чем раз в 100 мс
 let lastPlotlyUpdate = 0; // Для ограничения частоты обновления Plotly
 
+let altitudeAnimationFrameId = null;
+let droneAnimationFrameId = null;
+
 // Флаг активного изменения высоты (взлет/посадка/смена высоты)
 let isAltitudeChanging = false;
 
@@ -233,6 +236,8 @@ const PLOTLY_UPDATE_INTERVAL_TIME = 10;
 let selectedDroneDetails = null;
 let altitudeIndicator, temperatureIndicator, pressureIndicator;
 
+let isSimulationActive = false;
+
 // Карточка дрона
 function createDroneCard(drone) {
     if (!drone || !drone.name) {
@@ -282,6 +287,10 @@ function createDroneCard(drone) {
         </div>
     `;
     li.addEventListener('click', async function (event) {
+        if (isSimulationActive) {
+            openModal('Смена дрона невозможна во время моделирования. Очистите графики для сброса.');
+            return;
+        }
         if (!event.target.closest('.actions')) {
             const wasActive = this.classList.contains('active');
 
@@ -439,6 +448,10 @@ function focusSearch() {
 }
 
 function openModal(message) {
+    if (isSimulationActive) {
+        openModal('Сохранение недоступно во время моделирования');
+        return;
+    }
     const modal = document.getElementById('modal');
     if (!modal) return;
     document.body.appendChild(modal);
@@ -487,6 +500,10 @@ function closeModalWithAnimation(modalId, callback = null) {
 
 // Создание дрона
 async function openCreateModal() {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     try {
         const response = await fetch('create-drone-modal.html');
         if (!response.ok) throw new Error(`Не удалось загрузить create-drone-modal.html: ${response.statusText}`);
@@ -563,6 +580,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Удаление дрона
 async function deleteDrone(name) {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     currentDroneName = name;
     try {
         const response = await fetch('confirm-delete-drone-modal.html');
@@ -626,6 +647,10 @@ function closeDeleteModal() {
 
 // Редактирование дрона
 async function editDrone(name) {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     try {
         const checkResponse = await fetch(`http://localhost:3000/drones/${encodeURIComponent(name)}`);
         if (!checkResponse.ok) {
@@ -741,6 +766,10 @@ function validateDroneData(data, isCreate = false) {
 
 // Переключение темы
 function toggleTheme() {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     document.body.classList.toggle('dark-theme');
     const isDark = document.body.classList.contains('dark-theme');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
@@ -807,8 +836,59 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDrones();
 });
 
-let altitudeAnimationFrameId = null;
-let droneAnimationFrameId = null;
+// Блокировка элементов интерфейса во время моделирования
+function updateUIState() {
+    const disabled = isSimulationActive;
+
+    document.querySelectorAll('.drone-item').forEach(item => {
+        item.style.pointerEvents = disabled ? 'none' : 'auto';
+        item.style.opacity = disabled ? '0.6' : '1';
+    });
+
+    const toDisableButtons = [
+        '#themeToggle',
+        '#settingsButton',
+        '#showFlightsButton',
+        '.search-bar button'
+    ];
+
+    const keepEnabledButtons = [
+        '#startStopButton',
+        '#landButton',
+        '#increaseAltitudeBtn',
+        '#decreaseAltitudeBtn',
+        '#clearButton',
+        '#saveDataButton'
+    ];
+
+    toDisableButtons.forEach(selector => {
+        const btn = document.querySelector(selector);
+        if (btn) {
+            btn.disabled = disabled;
+            btn.classList.toggle('disabled-ui', disabled);
+        }
+    });
+
+    keepEnabledButtons.forEach(selector => {
+        const btn = document.querySelector(selector);
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('disabled-ui');
+        }
+    });
+
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.disabled = disabled;
+        if (!disabled) searchInput.value = '';
+        searchInput.classList.toggle('disabled-ui', disabled);
+    }
+
+    document.querySelectorAll('.drone-item .actions button').forEach(btn => {
+        btn.disabled = disabled;
+        btn.classList.toggle('disabled-ui', disabled);
+    });
+}
 
 function toggleStartStop() {
     const startStopButton = document.getElementById('startStopButton');
@@ -820,6 +900,8 @@ function toggleStartStop() {
     }
 
     isFlying = !isFlying;
+    isSimulationActive = isFlying || (!isFlying && currentDroneName);
+    updateUIState();
 
     if (isFlying) {
         if (altitude <= 0.1) {
@@ -2168,6 +2250,8 @@ function clearGraphs(confirmed = false) {
 
     updateSettingsFields();
 
+    isSimulationActive = false;
+    updateUIState();
 
     setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
@@ -2314,6 +2398,10 @@ function showFlightNamePrompt(callback) {
 }
 
 async function showFlights() {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     let modal = document.getElementById('flightsModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -2508,6 +2596,7 @@ function handleClearConfirmation(confirmed) {
     closeModalWithAnimation('modal', () => {
         if (confirmed) {
             clearGraphs(true);
+            setTimeout(() => renderDrones(), 100);
         }
     });
 }
@@ -2630,6 +2719,10 @@ function moveRight() {
 
 // Обработчики нажатия и отпускания клавиш
 document.addEventListener('keydown', (event) => {
+    // if (isSimulationActive && !['Space', 'KeyL', 'KeyR'].includes(event.code)) {
+    //     event.preventDefault();
+    //     return;
+    // }
     if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.repeat) {
         return;
     }
@@ -2715,6 +2808,10 @@ document.addEventListener('keyup', (event) => {
 
 // Окно настроек
 async function showSettings() {
+    if (isSimulationActive) {
+        openModal('Настройки недоступны во время моделирования');
+        return;
+    }
     let modal = document.getElementById('settingsModal');
     if (modal && modal.classList.contains('active')) {
         return;

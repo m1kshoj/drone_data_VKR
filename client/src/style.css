@@ -1525,3 +1525,45 @@ body.dark-theme .flight-graphs-preview img {
     width: 14px;
     height: 14px;
 }
+
+#flightNameInput {
+    width: 462px;
+    position: relative;
+    left: -18px;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.drone-item.disabled {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.disabled-ui {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+#startStopButton,
+#landButton,
+#increaseAltitudeBtn,
+#decreaseAltitudeBtn,
+#clearButton,
+#saveDataButton {
+    transition: all 0.2s ease;
+}
+
+#startStopButton:disabled,
+#landButton:disabled,
+#increaseAltitudeBtn:disabled,
+#decreaseAltitudeBtn:disabled,
+#clearButton:disabled,
+#saveDataButton:disabled {
+    opacity: 1 !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+}
