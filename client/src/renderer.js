@@ -84,19 +84,18 @@ transition: opacity 0.2s ease;
     .plot-container:hover .modebar {
         opacity: 1;
 }
-    /* Added styles for settings point input */
     .point-input-section {
-        border: 1px solid #ccc; /* Use theme-appropriate color later if needed */
+        border: 1px solid #ccc;
         padding: 10px;
         margin-top: 10px;
         border-radius: 4px;
-        background-color: rgba(255, 255, 255, 0.05); /* Slight background for dark themes */
+        background-color: rgba(255, 255, 255, 0.05);
     }
     .point-input-section h5 {
         margin-top: 0;
         margin-bottom: 10px;
         font-size: 1em;
-        color: inherit; /* Inherit text color from theme */
+        color: inherit;
     }
     .point-input-controls {
         display: flex;
@@ -105,25 +104,24 @@ transition: opacity 0.2s ease;
     }
     .point-input-controls input[type="number"] {
         flex-grow: 1;
-        width: 70px; /* Adjust as needed */
+        width: 70px;
         padding: 8px;
-        border: 1px solid #555; /* Theme-aware border */
-        background-color: #333; /* Theme-aware background */
-        color: #fff; /* Theme-aware text color */
+        border: 1px solid #555;
+        background-color: #333;
+        color: #fff;
         border-radius: 4px;
     }
-    .point-input-controls button { /* Style for add button */
+    .point-input-controls button {
         padding: 8px 12px;
-        /* Assuming .button-primary styles are defined elsewhere or add them */
     }
     .points-list {
         max-height: 100px;
         overflow-y: auto;
-        border: 1px solid #444; /* Theme-aware border */
+        border: 1px solid #444;
         padding: 8px;
         margin-bottom: 10px;
         font-size: 0.9em;
-        background-color: rgba(0,0,0,0.1); /* Slight inner background */
+        background-color: rgba(0,0,0,0.1);
         border-radius: 4px;
     }
     .points-list div {
@@ -131,39 +129,37 @@ transition: opacity 0.2s ease;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px solid #444; /* Separator for points */
+        border-bottom: 1px solid #444;
     }
     .points-list div:last-child {
         border-bottom: none;
     }
-    .points-list div button { /* Style for remove button */
+    .points-list div button {
         margin-left: 10px;
         padding: 2px 8px;
         font-size: 0.8em;
-        background-color: #dc3545; /* Red for delete */
+        background-color: #dc3545;
         border: none;
         color: white;
         cursor: pointer;
         border-radius: 3px;
     }
-    .point-input-section > button.button-danger { /* Style for "Clear all points" */
+    .point-input-section > button.button-danger {
         width: 100%;
         padding: 8px;
         margin-top: 5px;
     }
-    /* Style for active flight mode button */
     .shape-btn.active-flight-mode {
-        background-color: #0d6efd; /* Example: Bootstrap primary blue */
+        background-color: #0d6efd;
         color: white;
         border: 1px solid #0a58ca;
     }
     .shape-btn:disabled {
-        background-color: #6c757d; /* Example: Bootstrap secondary/disabled grey */
+        background-color: #6c757d;
         color: #ccc;
         cursor: not-allowed;
         opacity: 0.65;
     }
-
 `;
 document.head.appendChild(style);
 
@@ -818,11 +814,16 @@ function toggleStartStop() {
     const startStopButton = document.getElementById('startStopButton');
     if (!startStopButton) return;
 
+    if (!isFlying && !currentDroneName) {
+        openModal('Пожалуйста, выберите дрон перед запуском моделирования.');
+        return;
+    }
+
     isFlying = !isFlying;
 
     if (isFlying) {
         if (altitude <= 0.1) {
-            warningsTriggered = { altitude: false, temperature: false, pressure: false };
+            warningsTriggered = {altitude: false, temperature: false, pressure: false};
             if (isLanded) {
                 targetAltitude = appSettings.targetAltitude;
                 console.log(`Взлет на ${targetAltitude.toFixed(1)} м (с ранее приземленного состояния)`);
@@ -954,7 +955,7 @@ function toggleStartStop() {
                 dronePathBeforeLanding = null;
             }
         } else {
-            warningsTriggered = { altitude: false, temperature: false, pressure: false };
+            warningsTriggered = {altitude: false, temperature: false, pressure: false};
             console.log(`Возобновление полета в воздухе на высоте ${altitude.toFixed(1)} м`);
             targetAltitude = appSettings.targetAltitude;
             isAltitudeChanging = (Math.abs(altitude - targetAltitude) > 0.5);
@@ -1064,14 +1065,6 @@ function initOrUpdateGraph(graphId, data, layoutConfig, baseLayout = {}) {
     Plotly.react(graphId, data, finalLayout, plotlyConfig)
         .catch(e => console.error('Ошибка при обновлении графика ' + graphId + ':', e));
 }
-
-plotlyConfig.modeBarButtonsToAdd = [{
-    name: 'Save as PNG (theme-aware)',
-    icon: Plotly.Icons.camera,
-    click: function(gd) {
-        saveGraph(gd.id, gd.id + '_export');
-    }
-}];
 
 // Обновление темы для всех графиков
 function updateGraphTheme() {
@@ -2096,7 +2089,7 @@ function clearGraphs(confirmed = false) {
         droneAnimationFrameId = null;
     }
 
-    warningsTriggered = { altitude: false, temperature: false, pressure: false };
+    warningsTriggered = {altitude: false, temperature: false, pressure: false};
     resetIndicators();
     currentDroneName = null;
     selectedDroneDetails = null;
@@ -2183,110 +2176,34 @@ function clearGraphs(confirmed = false) {
 
 async function saveData() {
     if (!selectedDroneDetails || !selectedDroneDetails.id) {
-        openModal('Пожалуйста, выберите дрон из списка перед сохранением полета.');
+        openModal('Пожалуйста, выберите дрон перед сохранением полёта.');
         return;
     }
-
     if (time === 0 && (isLanded || !isFlying)) {
-        openModal('Нет данных для сохранения. Начните полет.');
+        openModal('Нет данных для сохранения. Начните полёт.');
         return;
     }
 
-    showFlightNamePrompt(async (flightName) => {
-        if (!flightName) {
-            openModal('Сохранение отменено: не указано имя полета.');
+    showFlightNamePrompt(async flightName => {
+        if (flightName === null) {
             return;
         }
 
         const flightDuration = parseFloat(time.toFixed(1));
-        const maxAltitudeAchieved = altitudeData.y.length > 0 ? Math.max(...altitudeData.y) : 0;
-        const minTemperatureAchieved = temperatureData.y.length > 0 ? Math.min(...temperatureData.y) : null;
-        const minPressureAchieved = pressureData.y.length > 0 ? Math.min(...pressureData.y) : null;
-
-        let warningsString = "";
-        if (warningsTriggered.altitude) warningsString += "A";
-        if (warningsTriggered.temperature) warningsString += "T";
-        if (warningsTriggered.pressure) warningsString += "P";
-        if (warningsString === "") warningsString = "Нет";
-
-        const isCurrentlyDarkTheme = document.body.classList.contains('dark-theme');
-
-        const lightThemeLayoutColors = {
-            fontColor: '#000000',
-            axisLineColor: '#888888',
-            gridColor: '#cccccc',
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        };
-
-        const darkThemeLayoutColors = {
-            fontColor: '#ffffff',
-            axisLineColor: '#888888',
-            gridColor: '#555555',
-            paper_bgcolor: '#1a1a1a',
-            plot_bgcolor: '#2d2d2d'
-        };
-
-        const saveLayoutColors = isCurrentlyDarkTheme ? lightThemeLayoutColors : darkThemeLayoutColors;
-
-
-        const commonLayoutAdditions = {
-            font: { color: saveLayoutColors.fontColor },
-            paper_bgcolor: saveLayoutColors.paper_bgcolor,
-            plot_bgcolor: saveLayoutColors.plot_bgcolor,
-            xaxis: {
-                color: saveLayoutColors.fontColor,
-                linecolor: saveLayoutColors.axisLineColor,
-                gridcolor: saveLayoutColors.gridColor,
-                zerolinecolor: saveLayoutColors.axisLineColor
-            },
-            yaxis: {
-                color: saveLayoutColors.fontColor,
-                linecolor: saveLayoutColors.axisLineColor,
-                gridcolor: saveLayoutColors.gridColor,
-                zerolinecolor: saveLayoutColors.axisLineColor
-            }
-        };
-
-        const titleFontLayout = {
-            titlefont: { color: saveLayoutColors.fontColor },
-            xaxis: {
-                color: saveLayoutColors.fontColor,
-                linecolor: saveLayoutColors.axisLineColor,
-                gridcolor: saveLayoutColors.gridColor,
-                zerolinecolor: saveLayoutColors.axisLineColor,
-                titlefont: { color: saveLayoutColors.fontColor }
-            },
-            yaxis: {
-                color: saveLayoutColors.fontColor,
-                linecolor: saveLayoutColors.axisLineColor,
-                gridcolor: saveLayoutColors.gridColor,
-                zerolinecolor: saveLayoutColors.axisLineColor,
-                titlefont: { color: saveLayoutColors.fontColor }
-            }
-        };
-
+        const maxAltitudeAchieved = altitudeData.y.length ? Math.max(...altitudeData.y) : 0;
+        const minTemperatureAchieved = temperatureData.y.length ? Math.min(...temperatureData.y) : null;
+        const minPressureAchieved = pressureData.y.length ? Math.min(...pressureData.y) : null;
+        let warningsString = '';
+        if (warningsTriggered.altitude) warningsString += 'A';
+        if (warningsTriggered.temperature) warningsString += 'T';
+        if (warningsTriggered.pressure) warningsString += 'P';
+        if (!warningsString) warningsString = 'Нет';
 
         try {
-            const locationLayout = JSON.parse(JSON.stringify(document.getElementById('main-graph').layout || {}));
-            Object.assign(locationLayout, commonLayoutAdditions, titleFontLayout);
-            if (locationLayout.shapes) {
-                locationLayout.shapes.forEach(shape => {
-                    if (shape.type === 'line') {
-                        shape.line.color = saveLayoutColors.axisLineColor;
-                    }
-                });
-            }
-
-
-            const timeSeriesLayout = JSON.parse(JSON.stringify(document.getElementById('altitude-graph').layout || {}));
-            Object.assign(timeSeriesLayout, commonLayoutAdditions, titleFontLayout);
-
-
-            const locationImg = await Plotly.toImage('main-graph', { format: 'png', height: 400, width: 600, layout: locationLayout });
-            const altitudeImg = await Plotly.toImage('altitude-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
-            const tempImg = await Plotly.toImage('temperature-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
-            const pressureImg = await Plotly.toImage('pressure-graph', { format: 'png', height: 300, width: 400, layout: JSON.parse(JSON.stringify(timeSeriesLayout)) });
+            const locationImg = await Plotly.toImage('main-graph', {format: 'png', width: 600, height: 400});
+            const altitudeImg = await Plotly.toImage('altitude-graph', {format: 'png', width: 400, height: 300});
+            const tempImg = await Plotly.toImage('temperature-graph', {format: 'png', width: 400, height: 300});
+            const pressureImg = await Plotly.toImage('pressure-graph', {format: 'png', width: 400, height: 300});
 
             const flightData = {
                 naming: flightName,
@@ -2301,24 +2218,19 @@ async function saveData() {
                 min_flight_pressure: minPressureAchieved !== null ? parseFloat(minPressureAchieved.toFixed(2)) : null,
                 warnings: warningsString
             };
-            const response = await fetch('http://localhost:3000/flights', {
+
+            const resp = await fetch('http://localhost:3000/flights', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(flightData),
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(flightData)
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Неизвестная ошибка сервера при сохранении.' }));
-                throw new Error(errorData.error || `Ошибка ${response.status}`);
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({error: 'Неизвестная ошибка сервера'}));
+                throw new Error(err.error || `Ошибка ${resp.status}`);
             }
-
-            const result = await response.json();
-            openModal(`Полет "${flightName}" успешно сохранен!`);
-
+            openModal(`Полет "${flightName}" успешно сохранён!`);
         } catch (error) {
-            console.error('Ошибка при сохранении данных полета:', error);
+            console.error('Ошибка при сохранении данных полёта:', error);
             openModal(`Ошибка сохранения: ${error.message}`);
         }
     });
@@ -2331,16 +2243,18 @@ function showFlightNamePrompt(callback) {
 
     modal = document.createElement('div');
     modal.id = modalId;
-    modal.className = 'modal active';
+    modal.className = 'modal';
 
     modal.innerHTML = `
         <div class="modal-content">
-            <h3 class="modal-title">Сохранение полета</h3>
-            <div class="input-group">
+            <h3 class="modal-title">Сохранение полёта</h3>
+            <div class="input-group" style="padding: 0 20px;">
                 <input type="text" id="flightNameInput" placeholder=" ">
-                <label for="flightNameInput">Название полета</label>
+                <label for="flightNameInput">Название полёта</label>
             </div>
-            <div id="flightNameError" class="error-message" style="color: red; font-size: 0.9em; margin-top: -15px; margin-bottom: 10px; display: none;"></div>
+            <div id="flightNameError" class="error-message"
+                 style="color: red; font-size: 0.9em; margin-top: -15px; margin-bottom: 10px; display: none;">
+            </div>
             <div class="modal-actions">
                 <button id="cancelFlightNameBtn" class="button-danger">Отмена</button>
                 <button id="confirmFlightNameBtn" class="button-success">Сохранить</button>
@@ -2349,27 +2263,30 @@ function showFlightNamePrompt(callback) {
     `;
     document.body.appendChild(modal);
 
+    setTimeout(() => modal.classList.add('active'), 50);
+
     const flightNameInput = modal.querySelector('#flightNameInput');
     const confirmBtn = modal.querySelector('#confirmFlightNameBtn');
     const cancelBtn = modal.querySelector('#cancelFlightNameBtn');
     const errorDiv = modal.querySelector('#flightNameError');
 
-    flightNameInput.value = `Полет ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    const now = new Date();
+    flightNameInput.value = `Полет ${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+    })}`;
     flightNameInput.focus();
     flightNameInput.select();
 
-
     const closeModalPrompt = () => {
         modal.classList.remove('active');
-        setTimeout(() => {
-            modal.remove();
-        }, 300);
+        setTimeout(() => modal.remove(), 300);
     };
 
     confirmBtn.onclick = () => {
         const name = flightNameInput.value.trim();
         if (!name) {
-            errorDiv.textContent = 'Название полета не может быть пустым.';
+            errorDiv.textContent = 'Название полёта не может быть пустым.';
             errorDiv.style.display = 'block';
             flightNameInput.focus();
             return;
@@ -2384,17 +2301,15 @@ function showFlightNamePrompt(callback) {
         callback(null);
     };
 
-    modal.addEventListener('click', (e) => {
+    modal.addEventListener('click', e => {
         if (e.target === modal) {
             closeModalPrompt();
             callback(null);
         }
     });
 
-    flightNameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            confirmBtn.click();
-        }
+    flightNameInput.addEventListener('keypress', e => {
+        if (e.key === 'Enter') confirmBtn.click();
     });
 }
 
@@ -2535,9 +2450,9 @@ function showDeleteFlightConfirmation(flightId) {
 async function confirmDeleteFlight(flightId) {
     closeModalWithAnimation('modal', async () => {
         try {
-            const response = await fetch(`http://localhost:3000/flights/${flightId}`, { method: 'DELETE' });
+            const response = await fetch(`http://localhost:3000/flights/${flightId}`, {method: 'DELETE'});
             if (!response.ok) {
-                const err = await response.json().catch(() => ({ error: 'Ошибка сервера' }));
+                const err = await response.json().catch(() => ({error: 'Ошибка сервера'}));
                 throw new Error(err.error || `Ошибка ${response.status}`);
             }
             openModal('Полет успешно удален.');
