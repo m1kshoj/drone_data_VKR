@@ -3710,9 +3710,8 @@ window.addEventListener('click', function(event) {
             else if (modal.id === 'modal') closeModal(); // General modal
             else if (modal.id === 'createDroneModal') closeCreateModal();
             else if (modal.id === 'settingsModal') {
-                // Logic to revert settings or just close
                 const initialH = typeof appSettings !== 'undefined' ? appSettings.heightAboveSea : 0;
-                const initialT = typeof appSettings !== 'undefined' ? appSettings.targetAltitude : 3; // Assuming 3 is INITIAL_TAKEOFF_ALTITUDE
+                const initialT = typeof appSettings !== 'undefined' ? appSettings.targetAltitude : 3;
                 const initialVoronoiPoints = typeof appSettings !== 'undefined' && Array.isArray(appSettings.voronoiPoints) ? JSON.parse(JSON.stringify(appSettings.voronoiPoints)) : [];
                 const initialCellularEndPoint = typeof appSettings !== 'undefined' && appSettings.cellularEndPoint ? JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : { x: null, y: null };
 
