@@ -445,6 +445,7 @@ function focusSearch() {
 function openModal(message) {
     const modal = document.getElementById('modal');
     if (!modal) return;
+    document.body.appendChild(modal);
     modal.classList.remove('active', 'closing');
     modal.innerHTML = `
         <div class="modal-content">
