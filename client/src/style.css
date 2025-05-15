@@ -430,7 +430,7 @@ body:not(.dark-theme) .graph {
 }
 
 .modal-content button {
-    margin-top: 1px;
+    margin-top: -5px; /*-16*/
     padding: 8px 16px;
     background-color: #007bff;
     color: white;
@@ -1336,8 +1336,8 @@ body.dark-theme {
 /* Стили для окна сохранённых полётов */
 .flight-log-modal .modal-content.large {
     max-width: 95%;
-    width: auto;
-    max-height: 90vh;
+    width: 1292px;
+    max-height: 89vh;
     display: flex;
     flex-direction: column;
     min-height: 300px;
