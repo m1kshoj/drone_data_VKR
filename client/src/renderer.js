@@ -451,7 +451,7 @@ function focusSearch() {
 
 function openModal(message) {
     if (isSimulationActive) {
-        openModal('Сохранение недоступно во время моделирования');
+        console.warn('Настройки недоступны во время моделирования');
         return;
     }
     const modal = document.getElementById('modal');
@@ -2286,10 +2286,48 @@ async function saveData() {
         if (!warningsString) warningsString = 'Нет';
 
         try {
-            const locationImg = await Plotly.toImage('main-graph', {format: 'png', width: 600, height: 400});
-            const altitudeImg = await Plotly.toImage('altitude-graph', {format: 'png', width: 400, height: 300});
-            const tempImg = await Plotly.toImage('temperature-graph', {format: 'png', width: 400, height: 300});
-            const pressureImg = await Plotly.toImage('pressure-graph', {format: 'png', width: 400, height: 300});
+            let locationImg = '', altitudeImg = '', tempImg = '', pressureImg = '';
+            let imageErrors = [];
+            try {
+                locationImg = await Plotly.toImage('main-graph', {format: 'png', width: 600, height: 400});
+                if (typeof locationImg !== 'string' || !locationImg.startsWith('data:image/png;base64,')) {
+                    imageErrors.push('Ошибка генерации изображения местоположения.');
+                    locationImg = '';
+                }
+            } catch (e) {
+                imageErrors.push(`Критическая ошибка Plotly.toImage (main-graph): ${e.message}`);
+                locationImg = '';
+            }
+            try {
+                altitudeImg = await Plotly.toImage('altitude-graph', {format: 'png', width: 600, height: 400});
+                if (typeof altitudeImg !== 'string' || !altitudeImg.startsWith('data:image/png;base64,')) {
+                    imageErrors.push('Ошибка генерации изображения местоположения.');
+                    altitudeImg = '';
+                }
+            } catch (e) {
+                imageErrors.push(`Критическая ошибка Plotly.toImage (altitude-graph): ${e.message}`);
+                locationImg = '';
+            }
+            try {
+                tempImg = await Plotly.toImage('temperature-graph', {format: 'png', width: 600, height: 400});
+                if (typeof tempImg !== 'string' || !tempImg.startsWith('data:image/png;base64,')) {
+                    imageErrors.push('Ошибка генерации изображения местоположения.');
+                    tempImg = '';
+                }
+            } catch (e) {
+                imageErrors.push(`Критическая ошибка Plotly.toImage (temperature-graph): ${e.message}`);
+                locationImg = '';
+            }
+            try {
+                pressureImg = await Plotly.toImage('pressure-graph', {format: 'png', width: 600, height: 400});
+                if (typeof pressureImg !== 'string' || !pressureImg.startsWith('data:image/png;base64,')) {
+                    imageErrors.push('Ошибка генерации изображения местоположения.');
+                    pressureImg = '';
+                }
+            } catch (e) {
+                imageErrors.push(`Критическая ошибка Plotly.toImage (pressure-graph): ${e.message}`);
+                pressureImg = '';
+            }
 
             const flightData = {
                 naming: flightName,
@@ -2311,15 +2349,23 @@ async function saveData() {
                 body: JSON.stringify(flightData)
             });
             if (!resp.ok) {
-                const err = await resp.json().catch(() => ({error: 'Неизвестная ошибка сервера'}));
-                throw new Error(err.error || `Ошибка ${resp.status}`);
+                const errText = await resp.text();
+                let errJson = null;
+                try { errJson = JSON.parse(errText); } catch (e) {}
+                console.error('Ошибка ответа сервера при сохранении:', errText);
+                throw new Error(errJson?.error || `Ошибка сервера: ${resp.status} - ${resp.statusText}. Ответ: ${errText}`);
             }
+            await resp.json();
             openModal(`Полет "${flightName}" успешно сохранён!`);
+            allFlightsData = null;
+            showFlights()
         } catch (error) {
             console.error('Ошибка при сохранении данных полёта:', error);
             openModal(`Ошибка сохранения: ${error.message}`);
         }
     });
+    allFlightsData = null;
+    showFlights();
 }
 
 function showFlightNamePrompt(callback) {
@@ -2443,6 +2489,7 @@ async function showFlights() {
 
     try {
         if (allFlightsData !== null) {
+            console.log('Данные из allFlightsData для рендеринга:', JSON.stringify(allFlightsData, null, 2));
             renderFlightsList(allFlightsData);
         } else {
             console.log('Данные о полетах не были предварительно загружены или загрузка не удалась, загрузка при открытии модального окна...');
@@ -2481,14 +2528,27 @@ function renderFlightsList(flights) {
     const ul = document.createElement('ul');
     ul.className = 'flights-list';
     flights.forEach(flight => {
+        const t = typeof flight.flight_time === 'number'
+            ? flight.flight_time.toFixed(1) + ' сек'
+            : '-';
+        const maxAlt = typeof flight.max_flight_altitude === 'number'
+            ? flight.max_flight_altitude.toFixed(1) + ' м'
+            : '-';
+        const minTemp = typeof flight.min_flight_temperature === 'number'
+            ? flight.min_flight_temperature.toFixed(1) + ' °C'
+            : '-';
+        const minPres = typeof flight.min_flight_pressure === 'number'
+            ? flight.min_flight_pressure.toFixed(1) + ' гПа'
+            : '-';
         const li = document.createElement('li');
         li.className = 'flight-item';
-        li.dataset.flightName = flight.naming.toLowerCase();
+        const title = flight.naming ?? flight.name ?? '';
+        li.dataset.flightName = title.toLowerCase();
 
         li.innerHTML = `
             <div class="flight-card">
                 <div class="flight-card-header">
-                    <h3>${flight.naming}</h3>
+                    <h3>${title}</h3>
                     <button class="delete-flight-btn button-danger" data-flight-id="${flight.id}" title="Удалить полет">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3" viewBox="0 0 16 16">
                             <path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5ZM11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3A1.5 1.5 0 0 0 5 1.5v1H2.506a.58.58 0 0 0-.01 0H1.5a.5.5 0 0 0 0 1h.538l.853 10.66A2 2 0 0 0 4.885 16h6.23a2 2 0 0 0 1.994-1.84l.853-10.66h.538a.5.5 0 0 0 0-1h-.995a.59.59 0 0 0-.01 0H11Zm1.958 1-.846 10.58a1 1 0 0 1-.997.92h-6.23a1 1 0 0 1-.997-.92L3.042 3.5h9.916Zm-7.487 1a.5.5 0 0 1 .528.47l.5 8.5a.5.5 0 0 1-.998.06L5 5.03a.5.5 0 0 1 .47-.53Zm5.058 0a.5.5 0 0 1 .47.53l-.5 8.5a.5.5 0 1 1-.998-.06l.5-8.5a.5.5 0 0 1 .528-.47ZM8 4.5a.5.5 0 0 1 .5.5v8.5a.5.5 0 0 1-1 0V5a.5.5 0 0 1 .5-.5Z"/>
@@ -2499,10 +2559,10 @@ function renderFlightsList(flights) {
                     <div class="flight-card-body">
                         <p><strong>Дрон:</strong> ${flight.drone_name || 'Неизвестный дрон'}</p>
                         <p><strong>Дата:</strong> ${new Date(flight.created_at).toLocaleString()}</p>
-                        <p><strong>Время полета:</strong> ${flight.flight_time.toFixed(1)} сек</p>
-                        <p><strong>Макс. высота:</strong> ${flight.max_flight_altitude !== null ? flight.max_flight_altitude.toFixed(1) + ' м' : '-'}</p>
-                        <p><strong>Мин. температура:</strong> ${flight.min_flight_temperature !== null ? flight.min_flight_temperature.toFixed(1) + ' °C' : '-'}</p>
-                        <p><strong>Мин. давление:</strong> ${flight.min_flight_pressure !== null ? flight.min_flight_pressure.toFixed(1) + ' гПа' : '-'}</p>
+                        <p><strong>Время полета:</strong> ${t}</p>
+                        <p><strong>Макс. высота:</strong> ${maxAlt}</p>
+                        <p><strong>Мин. температура:</strong> ${minTemp}</p>
+                        <p><strong>Мин. давление:</strong> ${minPres}</p>
                         <p><strong>Предупреждения:</strong> ${flight.warnings || 'Нет'}</p>
                     </div>
                     <div class="flight-graphs-preview">
@@ -2561,6 +2621,7 @@ async function confirmDeleteFlight(flightId) {
                 throw new Error(err.error || `Ошибка ${response.status}`);
             }
             openModal('Полет успешно удален.');
+            allFlightsData = null;
             showFlights();
         } catch (error) {
             openModal(`Ошибка удаления: ${error.message}`);
@@ -2758,10 +2819,6 @@ function moveRight() {
 
 // Обработчики нажатия и отпускания клавиш
 document.addEventListener('keydown', (event) => {
-    // if (isSimulationActive && !['Space', 'KeyL', 'KeyR'].includes(event.code)) {
-    //     event.preventDefault();
-    //     return;
-    // }
     if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.repeat) {
         return;
     }
@@ -3708,7 +3765,7 @@ function setupInfoModalInteractions() {
 }
 
 const originalOpenInfoModal = window.openInfoModal;
-window.openInfoModal = function() {
+window.openInfoModal = function () {
     if (typeof originalOpenInfoModal === 'function') {
         originalOpenInfoModal.call(this);
     } else {
@@ -3741,33 +3798,35 @@ function closeInfoModal() {
     }
 }
 
-window.addEventListener('click', function(event) {
+window.addEventListener('click', function (event) {
     const activeModals = document.querySelectorAll('.modal.active');
     activeModals.forEach(modal => {
         if (event.target === modal) {
             if (modal.id === 'infoModal') closeInfoModal();
-            else if (modal.id === 'modal') closeModal(); // General modal
+            else if (modal.id === 'modal') closeModal();
             else if (modal.id === 'createDroneModal') closeCreateModal();
             else if (modal.id === 'settingsModal') {
                 const initialH = typeof appSettings !== 'undefined' ? appSettings.heightAboveSea : 0;
                 const initialT = typeof appSettings !== 'undefined' ? appSettings.targetAltitude : 3;
                 const initialVoronoiPoints = typeof appSettings !== 'undefined' && Array.isArray(appSettings.voronoiPoints) ? JSON.parse(JSON.stringify(appSettings.voronoiPoints)) : [];
-                const initialCellularEndPoint = typeof appSettings !== 'undefined' && appSettings.cellularEndPoint ? JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : { x: null, y: null };
+                const initialCellularEndPoint = typeof appSettings !== 'undefined' && appSettings.cellularEndPoint ? JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : {
+                    x: null,
+                    y: null
+                };
 
                 if (typeof appSettings !== 'undefined') {
                     appSettings.heightAboveSea = initialH;
                     appSettings.targetAltitude = initialT;
                     appSettings.voronoiPoints = initialVoronoiPoints;
                     appSettings.cellularEndPoint = initialCellularEndPoint;
-                    if(typeof heightAboveSeaLevel !== 'undefined') heightAboveSeaLevel = initialH;
+                    if (typeof heightAboveSeaLevel !== 'undefined') heightAboveSeaLevel = initialH;
                     if (typeof isFlying !== 'undefined' && isFlying && typeof isLanded !== 'undefined' && !isLanded && typeof targetAltitude !== 'undefined' && targetAltitude !== initialT) {
                         targetAltitude = initialT;
-                        if(typeof isAltitudeChanging !== 'undefined') isAltitudeChanging = true;
+                        if (typeof isAltitudeChanging !== 'undefined') isAltitudeChanging = true;
                     }
                 }
                 closeSettingsModal();
-            }
-            else if (modal.id === 'flightsModal') closeFlightsModal();
+            } else if (modal.id === 'flightsModal') closeFlightsModal();
         }
     });
 });
