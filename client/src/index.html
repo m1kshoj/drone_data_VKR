@@ -141,17 +141,17 @@
             </ul>
             <h4>Управление полётом:</h4>
             <ul>
-                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▲</button></div><span class="info-description"><b>(Вперёд):</b> Направляет дрон вперёд.</span></li>
-                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">◀</button></div><span class="info-description"><b>(Влево):</b> Направляет дрон влево.</span></li>
-                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▶</button></div><span class="info-description"><b>(Вправо):</b> Направляет дрон вправо.</span></li>
-                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▼</button></div><span class="info-description"><b>(Назад):</b> Направляет дрон назад.</span></li>
+                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▲</button></div><span class="info-description"><b>(Вперёд / W):</b> Направляет дрон вперёд.</span></li>
+                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">◀</button></div><span class="info-description"><b>(Влево / A):</b> Направляет дрон влево.</span></li>
+                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▶</button></div><span class="info-description"><b>(Вправо / D):</b> Направляет дрон вправо.</span></li>
+                <li><div class="info-button-representation-container"><button class="drone-controls-button-style">▼</button></div><span class="info-description"><b>(Назад / S):</b> Направляет дрон назад.</span></li>
                 <li>
                     <div class="info-button-representation-container">
                         <button id="infoStartStopButton" class="drone-controls-button-style" aria-label="Старт/Пауза">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-play" viewBox="0 0 16 16"><path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/></svg>
                         </button>
                     </div>
-                    <span class="info-description"><b>(Старт/Пауза):</b> Запускает или приостанавливает симуляцию полёта.</span>
+                    <span class="info-description"><b>(Старт или Пауза / Space):</b> Запускает или приостанавливает симуляцию полёта.</span>
                 </li>
                 <li>
                     <div class="info-button-representation-container">
@@ -159,7 +159,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
                         </button>
                     </div>
-                    <span class="info-description"><b>(Очистка графиков):</b> Сбрасывает все данные полёта и очищает графики.</span>
+                    <span class="info-description"><b>(Очистка графиков / R):</b> Сбрасывает все данные полёта и очищает графики.</span>
                 </li>
                 <li>
                     <div class="info-button-representation-container">
@@ -167,10 +167,10 @@
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
                         </button>
                     </div>
-                    <span class="info-description"><b>(Посадка/Взлёт):</b> Посадка или взлёт дрона. (Иконка в демо не меняется)</span>
+                    <span class="info-description"><b>(Посадка или Взлёт / L):</b> Посадка или взлёт дрона.</span>
                 </li>
-                <li><div class="info-button-representation-container"><button class="altitude-buttons-button-style">↑ Высота</button></div><span class="info-description"><b>(Увеличить высоту):</b> Увеличивает целевую высоту полёта.</span></li>
-                <li><div class="info-button-representation-container"><button class="altitude-buttons-button-style">↓ Высота</button></div><span class="info-description"><b>(Уменьшить высоту):</b> Уменьшает целевую высоту полёта.</span></li>
+                <li><div class="info-button-representation-container"><button class="altitude-buttons-button-style">↑ Высота</button></div><span class="info-description"><b>(Увеличить высоту / E):</b> Увеличивает целевую высоту полёта.</span></li>
+                <li><div class="info-button-representation-container"><button class="altitude-buttons-button-style">↓ Высота</button></div><span class="info-description"><b>(Уменьшить высоту / Q):</b> Уменьшает целевую высоту полёта.</span></li>
             </ul>
             <h4>Интерфейс и данные:</h4>
             <ul>

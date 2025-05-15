@@ -31,7 +31,6 @@ button:hover,
 .drone-controls button:hover,
 .actions button:hover,
 .save-button:hover {
-    transform: scale(1.05);
 }
 
 /* Стили для контейнера и основного содержимого */
@@ -243,7 +242,6 @@ h2 {
 
 .save-button:hover {
     background-color: #218838;
-    transform: scale(1.05);
 }
 
 .save-button svg {
@@ -425,7 +423,6 @@ body:not(.dark-theme) .graph {
 }
 
 .modal.active .modal-content {
-    transform: scale(1);
     opacity: 1;
 }
 
@@ -771,7 +768,6 @@ body:not(.dark-theme) {
 
 .theme-toggle-button:hover {
     background-color: #0056b3;
-    transform: scale(1.05);
 }
 
 .theme-icon {
@@ -1264,7 +1260,7 @@ body.dark-theme {
 }
 
 .modal.closing .modal-content {
-    transform: scale(0.95);
+
     opacity: 0;
 }
 
@@ -1519,7 +1515,6 @@ body.dark-theme .flight-graphs-preview img {
 }
 .delete-flight-btn:hover {
     background-color: #c82333;
-    transform: scale(1.05);
 }
 .delete-flight-btn svg {
     width: 14px;
@@ -1601,7 +1596,6 @@ button:disabled {
 
 .info-button:hover {
     background-color: #0056b3;
-    transform: scale(1.05);
 }
 
 .info-button svg {
@@ -1764,7 +1758,6 @@ body.dark-theme .info-description {
 }
 
 .info-button-representation-container .indicator {
-    transform: scale(0.9);
 }
 
 .info-button-representation-container .actions.edit {
