@@ -1817,3 +1817,85 @@ body.dark-theme .info-description {
     position: relative;
     margin-left: -2px;
 }
+
+.modebar {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.plot-container:hover .modebar {
+    opacity: 1;
+}
+.point-input-section {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.point-input-section h5 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    color: inherit;
+}
+.point-input-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.point-input-controls input[type="number"] {
+    flex-grow: 1;
+    width: 70px;
+    padding: 8px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #fff;
+    border-radius: 4px;
+}
+.point-input-controls button {
+    padding: 8px 12px;
+}
+.points-list {
+    max-height: 100px;
+    overflow-y: auto;
+    border: 0px solid #444;
+    font-size: 0.9em;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 4px;
+}
+.points-list div {
+    padding: 4px 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #444;
+}
+.points-list div:last-child {
+    border-bottom: none;
+}
+.points-list div button {
+    margin-left: 10px;
+    padding: 2px 8px;
+    font-size: 0.8em;
+    background-color: #dc3545;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.point-input-section > button.button-danger {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+}
+.shape-btn.active-flight-mode {
+    background-color: #0d6efd;
+    color: white;
+    border: 1px solid #0a58ca;
+}
+.shape-btn:disabled {
+    background-color: #6c757d;
+    color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.65;
+}
