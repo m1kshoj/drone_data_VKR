@@ -27,7 +27,10 @@ let appSettings = {
     heightAboveSea: 0,
     targetAltitude: INITIAL_TAKEOFF_ALTITUDE,
     lastUpdated: null,
-    voronoiPoints: []
+    voronoiPoints: [],
+    cellularEndPoint: {x: null, y: null},
+    circleRadius: 50,
+    squareDimension: 32
 };
 
 // Глобальные переменные для данных графиков
@@ -120,9 +123,7 @@ transition: opacity 0.2s ease;
     .points-list {
         max-height: 100px;
         overflow-y: auto;
-        border: 1px solid #444;
-        padding: 8px;
-        margin-bottom: 10px;
+        border: 0px solid #444;
         font-size: 0.9em;
         background-color: rgba(0,0,0,0.1);
         border-radius: 4px;
@@ -175,31 +176,31 @@ const plotlyConfig = {
 };
 
 let isSquareModeActive = false;
-const squarePathCoordinates = [
-    {x: 0, y: 50},
-    {x: -50, y: 50},
-    {x: -50, y: -50},
-    {x: 50, y: -50},
-    {x: 50, y: 50},
-    {x: 0, y: 50},
-    {x: 0, y: 0}
+let N_default_init = appSettings.squareDimension;
+squarePathCoordinates = [
+    { x: -N_default_init, y: N_default_init },
+    { x: -N_default_init, y: -N_default_init },
+    { x: N_default_init, y: -N_default_init },
+    { x: N_default_init, y: N_default_init }
 ];
+
 let currentSquarePathIndex = 0;
 let isFlyingSquarePath = false;
 const SQUARE_PATH_SPEED = 10;
 let droneReachedTargetAltitudeForSquarePath = false;
 let controlAltitude = 0;    // опорная высота, по ней считаем посадку/взлёт и флаги
+let SQUARE_START_POINT = { x: 0, y: appSettings.squareDimension }; // Начальная точка (0, N)
+let isApproachingSquareStartPoint = false;
 
 let isCircleModeActive = false;
 let isFlyingCirclePath = false;
 let droneReachedTargetAltitudeForCirclePath = false;
-const CIRCLE_RADIUS = 50;
+let CIRCLE_RADIUS = appSettings.circleRadius;
 const CIRCLE_ANGULAR_SPEED = Math.PI / 10;
 let currentCircleAngle = 0;
 
 let isApproachingCircleStart = false; // Это верно, когда активен режим круга и дрон должен долететь до начальной точки круга
 let currentCircleApproachTarget = null; // Сохраняет цель {x, y} для фазы сближения в режиме круга
-const CIRCLE_START_POINT = {x: 0, y: 50}; // Точка, к которой подлетает дрон, прежде чем начать круговое движение. Соответствует первой точке квадрата.
 const CIRCLE_APPROACH_SPEED = 10; // Скорость приближения к начальной точке круга, аналогичная скорости SQUARE_PATH_SPEED
 
 let dronePathBeforeLanding = null; // Сохраняет состояние дрона (местоположение, высоту, особенности режима) перед началом посадки в режиме квадрата /круга.
@@ -1534,47 +1535,69 @@ function updateDronePosition(timestamp) {
                 }
             }
         } else if (isSquareModeActive && isFlying) {
-            isFlyingSquarePath = true;
-            const targetPos = squarePathCoordinates[currentSquarePathIndex];
-            const dX_sq = targetPos.x - newX;
-            const dY_sq = targetPos.y - newY;
-            const dist_sq = Math.hypot(dX_sq, dY_sq);
-            const step_sq = SQUARE_PATH_SPEED * effectiveDeltaTime;
-            if (dist_sq <= step_sq) {
-                newX = targetPos.x;
-                newY = targetPos.y;
-                currentSquarePathIndex++;
-                if (currentSquarePathIndex >= (squarePathCoordinates.length - 1)) {
+            if (isApproachingSquareStartPoint) {
+                const targetPosApp = SQUARE_START_POINT;
+                const dX_sq_app = targetPosApp.x - newX;
+                const dY_sq_app = targetPosApp.y - newY;
+                const dist_sq_app = Math.hypot(dX_sq_app, dY_sq_app);
+                const step_sq_app = SQUARE_PATH_SPEED * effectiveDeltaTime;
+                if (dist_sq_app <= step_sq_app || dist_sq_app < 0.1) {
+                    newX = targetPosApp.x;
+                    newY = targetPosApp.y;
+                    isApproachingSquareStartPoint = false;
                     currentSquarePathIndex = 0;
+                } else {
+                    newX += dX_sq_app / dist_sq_app * step_sq_app;
+                    newY += dY_sq_app / dist_sq_app * step_sq_app;
                 }
-            } else {
-                newX += dX_sq / dist_sq * step_sq;
-                newY += dY_sq / dist_sq * step_sq;
+            } else if (squarePathCoordinates && squarePathCoordinates.length > 0) {
+                const targetPos = squarePathCoordinates[currentSquarePathIndex];
+                const dX_sq = targetPos.x - newX;
+                const dY_sq = targetPos.y - newY;
+                const dist_sq = Math.hypot(dX_sq, dY_sq);
+                const step_sq = SQUARE_PATH_SPEED * effectiveDeltaTime;
+                if (dist_sq <= step_sq || dist_sq < 0.1) {
+                    newX = targetPos.x;
+                    newY = targetPos.y;
+                    currentSquarePathIndex++;
+                    if (currentSquarePathIndex >= squarePathCoordinates.length) {
+                        currentSquarePathIndex = 0;
+                    }
+                } else {
+                    newX += dX_sq / dist_sq * step_sq;
+                    newY += dY_sq / dist_sq * step_sq;
+                }
             }
         } else if (isCircleModeActive && isFlying) {
+            const currentCircleRadiusToUse = appSettings.circleRadius || CIRCLE_RADIUS;
+            const dynamicCircleStartPoint = {x: 0, y: currentCircleRadiusToUse};
+
             if (isApproachingCircleStart) {
-                currentCircleApproachTarget = CIRCLE_START_POINT;
+                currentCircleApproachTarget = dynamicCircleStartPoint;
                 const dX_c_app = currentCircleApproachTarget.x - newX;
                 const dY_c_app = currentCircleApproachTarget.y - newY;
                 const dist_c_app = Math.hypot(dX_c_app, dY_c_app);
                 const step_c_app = CIRCLE_APPROACH_SPEED * effectiveDeltaTime;
-                if (dist_c_app <= step_c_app) {
+                if (dist_c_app <= step_c_app || dist_c_app < 0.1) {
                     newX = currentCircleApproachTarget.x;
                     newY = currentCircleApproachTarget.y;
                     isApproachingCircleStart = false;
-                    isFlyingCirclePath = true;
                     currentCircleAngle = Math.atan2(newY, newX);
+                    if (newX === 0 && newY > 0) currentCircleAngle = Math.PI / 2;
+                    else if (newX === 0 && newY < 0) currentCircleAngle = -Math.PI / 2;
                 } else {
                     newX += dX_c_app / dist_c_app * step_c_app;
                     newY += dY_c_app / dist_c_app * step_c_app;
                 }
-            } else if (isFlyingCirclePath) {
+            } else {
                 const dAngle = CIRCLE_ANGULAR_SPEED * effectiveDeltaTime;
                 currentCircleAngle += dAngle;
-                newX = CIRCLE_RADIUS * Math.cos(currentCircleAngle);
-                newY = CIRCLE_RADIUS * Math.sin(currentCircleAngle);
+                newX = currentCircleRadiusToUse * Math.cos(currentCircleAngle);
+                newY = currentCircleRadiusToUse * Math.sin(currentCircleAngle);
                 if (currentCircleAngle >= (Math.PI * 2)) {
                     currentCircleAngle -= (Math.PI * 2);
+                } else if (currentCircleAngle <= -(Math.PI * 2)) {
+                    currentCircleAngle += (Math.PI * 2);
                 }
             }
         } else if (isVoronoiModeActive && isFlying && voronoiPathCoordinates.length > 0) {
@@ -1632,7 +1655,7 @@ function updateDronePosition(timestamp) {
     x = newX;
     y = newY;
     const lastPathPoint = path.length > 0 ? path[path.length - 1] : null;
-    if (!lastPathPoint || lastPathPoint.x !== x || lastPathPoint.y !== y) {
+    if (!lastPathPoint || Math.abs(lastPathPoint.x - x) > 0.01 || Math.abs(lastPathPoint.y - y) > 0.01) {
         path.push({x, y});
     }
 
@@ -2905,7 +2928,7 @@ document.addEventListener('keyup', (event) => {
 // Окно настроек
 async function showSettings() {
     if (isSimulationActive) {
-        openModal('Настройки недоступны во время моделирования');
+        openModal('Настройки недоступны во время моделирования.');
         return;
     }
     let modal = document.getElementById('settingsModal');
@@ -2920,7 +2943,6 @@ async function showSettings() {
     modal.className = 'modal';
     modal.id = 'settingsModal';
     document.body.appendChild(modal);
-
     try {
         const response = await fetch('settings-modal.html');
         if (!response.ok) throw new Error(`Не удалось загрузить settings-modal.html: ${response.statusText}`);
@@ -2929,37 +2951,74 @@ async function showSettings() {
 
         const form = modal.querySelector('#settingsForm');
         if (form) {
-            let voronoiSettingsSection = modal.querySelector('#voronoi_settings_section');
-            if (!voronoiSettingsSection) {
-                voronoiSettingsSection = createPointInputSectionHTML('voronoi', 'Метод Вороного');
-                const graphSettingsSection = Array.from(form.children).find(child => child.classList.contains('settings-section') && child.querySelector('h4.section-title')?.textContent.includes('Настройки графиков'));
-                if (graphSettingsSection) {
-                    form.insertBefore(voronoiSettingsSection, graphSettingsSection);
-                } else {
-                    form.appendChild(voronoiSettingsSection);
-                }
-            }
+            const graphSettingsTitleElement = Array.from(form.querySelectorAll('h4.section-title'))
+                .find(h4 => h4.textContent.includes('Настройки графиков'));
+            const referenceNodeForInsertion = graphSettingsTitleElement ? graphSettingsTitleElement.closest('.settings-section') : null;
 
-            let cellsSettingsSection = modal.querySelector('#cells_settings_section');
-            if (!cellsSettingsSection) {
-                cellsSettingsSection = createPointInputSectionHTML('cells', 'Клеточная декомпозиция');
-                const graphSettingsSection = Array.from(form.children).find(child => child.classList.contains('settings-section') && child.querySelector('h4.section-title')?.textContent.includes('Настройки графиков'));
-                if (graphSettingsSection) {
-                    form.insertBefore(cellsSettingsSection, graphSettingsSection);
-                } else {
-                    form.appendChild(cellsSettingsSection);
+            const insertSection = (sectionHTML, id) => {
+                let section = modal.querySelector(`#${id}`);
+                if (!section) {
+                    section = sectionHTML;
+                    if (referenceNodeForInsertion) {
+                        form.insertBefore(section, referenceNodeForInsertion);
+                    } else {
+                        const flightShapesSection = Array.from(form.children).find(child => child.classList.contains('settings-section') && child.querySelector('.flight-shapes'));
+                        let targetInsertionPoint = form.lastElementChild.previousElementSibling;
+                        if (flightShapesSection) {
+                            let currentEl = flightShapesSection;
+                            if(currentEl.nextElementSibling && currentEl.nextElementSibling.classList.contains('settings-section')) {
+                                currentEl = currentEl.nextElementSibling;
+                                if (currentEl.nextElementSibling) {
+                                    targetInsertionPoint = currentEl.nextElementSibling;
+                                }
+                            }
+                        }
+                        form.insertBefore(section, targetInsertionPoint);
+                    }
                 }
-            }
+                return section;
+            };
+
+            insertSection(createCircleInputSectionHTML(), 'circle_settings_section');
+            insertSection(createSquareInputSectionHTML(), 'square_settings_section');
+            insertSection(createPointInputSectionHTML('voronoi', 'Метод Вороного'), 'voronoi_settings_section');
+            insertSection(createPointInputSectionHTML('cells', 'Клеточная декомпозиция'), 'cells_settings_section');
         }
-
 
         updateSettingsFields();
         setupSettingsInputHandlers();
 
         setTimeout(() => modal.classList.add('active'), 10);
+
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeSettingsModal();
+            if (e.target === modal) {
+                const settingsSnapshot = JSON.parse(modal.dataset.settingsSnapshot || '{}');
+
+                appSettings.heightAboveSea = settingsSnapshot.heightAboveSea !== undefined ? settingsSnapshot.heightAboveSea : 0;
+                appSettings.targetAltitude = settingsSnapshot.targetAltitude !== undefined ? settingsSnapshot.targetAltitude : INITIAL_TAKEOFF_ALTITUDE;
+                appSettings.voronoiPoints = settingsSnapshot.voronoiPoints || [];
+                appSettings.cellularEndPoint = settingsSnapshot.cellularEndPoint || {x: null, y: null};
+                appSettings.circleRadius = settingsSnapshot.circleRadius !== undefined ? settingsSnapshot.circleRadius : 50;
+                appSettings.squareDimension = settingsSnapshot.squareDimension !== undefined ? settingsSnapshot.squareDimension : 32;
+
+                heightAboveSeaLevel = appSettings.heightAboveSea;
+                if (isFlying && !isLanded && targetAltitude !== appSettings.targetAltitude) {
+                    targetAltitude = appSettings.targetAltitude;
+                    isAltitudeChanging = true;
+                }
+                CIRCLE_RADIUS = appSettings.circleRadius;
+                const N_revert = appSettings.squareDimension;
+                SQUARE_START_POINT = { x: 0, y: N_revert };
+                squarePathCoordinates = [
+                    { x: -N_revert, y: N_revert }, { x: -N_revert, y: -N_revert },
+                    { x: N_revert, y: -N_revert }, { x: N_revert, y: N_revert }
+                ];
+
+                closeSettingsModal();
+            }
         });
+        modal.dataset.settingsSnapshot = JSON.stringify(appSettings);
+
     } catch (error) {
         console.error('Ошибка в окне настроек:', error);
         const existingModal = document.getElementById('settingsModal');
@@ -3001,6 +3060,36 @@ function createPointInputSectionHTML(modePrefix, title) {
             </div>
         `;
     }
+    return section;
+}
+
+function createCircleInputSectionHTML() {
+    const section = document.createElement('div');
+    section.id = 'circle_settings_section';
+    section.className = 'settings-section point-input-section';
+    section.style.display = 'none';
+    section.innerHTML = `
+        <h5 class="section-title" style="margin-top:0; margin-bottom:10px; font-size: 1em; color: inherit;">Параметр для "Круг"</h5>
+        <div class="point-input-controls">
+            <label for="circle_radius_input" style="margin-right: 10px; align-self: center; color: inherit;">Радиус (R):</label>
+            <input type="number" id="circle_radius_input" placeholder="R" style="flex-grow:1; width: auto;" class="form-control">
+        </div>
+    `;
+    return section;
+}
+
+function createSquareInputSectionHTML() {
+    const section = document.createElement('div');
+    section.id = 'square_settings_section';
+    section.className = 'settings-section point-input-section';
+    section.style.display = 'none';
+    section.innerHTML = `
+        <h5 class="section-title" style="margin-top:0; margin-bottom:10px; font-size: 1em; color: inherit;">Параметр для "Квадрат"</h5>
+        <div class="point-input-controls">
+            <label for="square_dimension_input" style="margin-right: 10px; align-self: center; color: inherit;">Число (N):</label>
+            <input type="number" id="square_dimension_input" placeholder="N" style="flex-grow:1; width: auto;" class="form-control">
+        </div>
+    `;
     return section;
 }
 
@@ -3087,10 +3176,10 @@ function updateSettingsFields() {
 
     const hi = modal.querySelector('#height_above_sea');
     const ta = modal.querySelector('#target_altitude');
-    if (hi) hi.value = appSettings.heightAboveSea;
-    if (ta) ta.value = appSettings.targetAltitude;
+    if (hi) hi.value = appSettings.heightAboveSea !== undefined ? appSettings.heightAboveSea : 0;
+    if (ta) ta.value = appSettings.targetAltitude !== undefined ? appSettings.targetAltitude : INITIAL_TAKEOFF_ALTITUDE;
 
-    updateCalculatedValues(appSettings.heightAboveSea);
+    updateCalculatedValues(appSettings.heightAboveSea !== undefined ? appSettings.heightAboveSea : 0);
 
     const allModeButtons = modal.querySelectorAll('.shape-btn');
     const activeModeButtonClass = 'active-flight-mode';
@@ -3100,69 +3189,67 @@ function updateSettingsFields() {
     const voronoiBtn = modal.querySelector('.shape-btn[data-shape="voronoi"]');
     const cellsBtn = modal.querySelector('.shape-btn[data-shape="cells"]');
 
+    const circleSettingsSection = modal.querySelector('#circle_settings_section');
+    const squareSettingsSection = modal.querySelector('#square_settings_section');
     const voronoiSettingsSection = modal.querySelector('#voronoi_settings_section');
     const cellsSettingsSection = modal.querySelector('#cells_settings_section');
 
-    if (voronoiSettingsSection) {
-        voronoiSettingsSection.classList.remove('active-sub-modal');
-        voronoiSettingsSection.style.maxHeight = null;
-    }
-    if (cellsSettingsSection) {
-        cellsSettingsSection.classList.remove('active-sub-modal');
-        cellsSettingsSection.style.maxHeight = null;
-    }
+    const hideSection = (section) => {
+        if (section && section.style.display !== 'none') {
+            section.classList.remove('active-sub-modal');
+            section.style.maxHeight = null;
+            setTimeout(() => {
+                if (!section.classList.contains('active-sub-modal')) {
+                    section.style.display = 'none';
+                }
+            }, 300);
+        } else if (section && !section.classList.contains('active-sub-modal')) {
+            section.style.display = 'none';
+        }
+    };
+
+    const showSection = (section, renderCallback) => {
+        if (section) {
+            section.style.display = 'block';
+            setTimeout(() => {
+                section.classList.add('active-sub-modal');
+                section.style.maxHeight = section.scrollHeight + "px";
+                if (renderCallback) renderCallback();
+            }, 10);
+        }
+    };
+
+    if (!isCircleModeActive) hideSection(circleSettingsSection);
+    if (!isSquareModeActive) hideSection(squareSettingsSection);
+    if (!isVoronoiModeActive) hideSection(voronoiSettingsSection);
+    if (!isCellularDecompositionModeActive) hideSection(cellsSettingsSection);
 
     allModeButtons.forEach(btn => btn.classList.remove(activeModeButtonClass));
     allModeButtons.forEach(btn => btn.disabled = false);
 
     let aModeIsActive = false;
-
     if (isSquareModeActive) {
         if (squareBtn) squareBtn.classList.add(activeModeButtonClass);
         aModeIsActive = true;
+        showSection(squareSettingsSection, () => {
+            const input = modal.querySelector('#square_dimension_input');
+            if (input) input.value = appSettings.squareDimension !== undefined ? appSettings.squareDimension : 32;
+        });
     } else if (isCircleModeActive) {
         if (circleBtn) circleBtn.classList.add(activeModeButtonClass);
         aModeIsActive = true;
+        showSection(circleSettingsSection, () => {
+            const input = modal.querySelector('#circle_radius_input');
+            if (input) input.value = appSettings.circleRadius !== undefined ? appSettings.circleRadius : 50;
+        });
     } else if (isVoronoiModeActive) {
         if (voronoiBtn) voronoiBtn.classList.add(activeModeButtonClass);
-        if (voronoiSettingsSection) {
-            voronoiSettingsSection.style.display = 'block';
-            setTimeout(() => {
-                voronoiSettingsSection.classList.add('active-sub-modal');
-                voronoiSettingsSection.style.maxHeight = voronoiSettingsSection.scrollHeight + "px";
-            }, 10);
-            renderPointsList('voronoi', Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []);
-        }
         aModeIsActive = true;
+        showSection(voronoiSettingsSection, () => renderPointsList('voronoi', Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []));
     } else if (isCellularDecompositionModeActive) {
         if (cellsBtn) cellsBtn.classList.add(activeModeButtonClass);
-        if (cellsSettingsSection) {
-            cellsSettingsSection.style.display = 'block';
-            setTimeout(() => {
-                cellsSettingsSection.classList.add('active-sub-modal');
-                cellsSettingsSection.style.maxHeight = cellsSettingsSection.scrollHeight + "px";
-            }, 10);
-            renderCellularEndpoint();
-        }
         aModeIsActive = true;
-    }
-
-    const animationDuration = 300;
-
-    if (!isVoronoiModeActive && voronoiSettingsSection) {
-        setTimeout(() => {
-            if (!isVoronoiModeActive && voronoiSettingsSection) {
-                voronoiSettingsSection.style.display = 'none';
-            }
-        }, animationDuration);
-    }
-
-    if (!isCellularDecompositionModeActive && cellsSettingsSection) {
-        setTimeout(() => {
-            if (!isCellularDecompositionModeActive && cellsSettingsSection) {
-                cellsSettingsSection.style.display = 'none';
-            }
-        }, animationDuration);
+        showSection(cellsSettingsSection, () => renderCellularEndpoint());
     }
 
     if (aModeIsActive) {
@@ -3196,14 +3283,6 @@ function setupSettingsInputHandlers() {
     const modal = document.getElementById('settingsModal');
     if (!modal) return;
 
-    const initialH = appSettings.heightAboveSea;
-    const initialT = appSettings.targetAltitude;
-    const initialVoronoiPoints = JSON.parse(JSON.stringify(Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []));
-    const initialCellularEndPoint = appSettings.cellularEndPoint ?
-        JSON.parse(JSON.stringify(appSettings.cellularEndPoint)) : {
-            x: null,
-            y: null
-        };
 
     const hi = modal.querySelector('#height_above_sea');
     const ta = modal.querySelector('#target_altitude');
@@ -3216,7 +3295,10 @@ function setupSettingsInputHandlers() {
     const voronoiBtn = modal.querySelector('.shape-btn[data-shape="voronoi"]');
     const cellsBtn = modal.querySelector('.shape-btn[data-shape="cells"]');
 
-    if (hi) hi.addEventListener('input', () => updateCalculatedValues());
+    const circleRadiusInput = modal.querySelector('#circle_radius_input');
+    const squareDimensionInput = modal.querySelector('#square_dimension_input');
+
+    if (hi) hi.addEventListener('input', () => updateCalculatedValues(parseFloat(hi.value) || 0));
 
     if (saveBtn) saveBtn.addEventListener('click', () => {
         if (isVoronoiModeActive && (!appSettings.voronoiPoints || appSettings.voronoiPoints.length < 2)) {
@@ -3231,94 +3313,125 @@ function setupSettingsInputHandlers() {
         const newH = parseFloat(hi?.value) || 0;
         const newT = parseFloat(ta?.value) || INITIAL_TAKEOFF_ALTITUDE;
 
+        let altitudeOrModeParamsChanged = false;
+        if (newT !== appSettings.targetAltitude) altitudeOrModeParamsChanged = true;
+
         appSettings.heightAboveSea = newH;
         heightAboveSeaLevel = newH;
-
-        if (newT !== appSettings.targetAltitude) {
-            if (isSquareModeActive) droneReachedTargetAltitudeForSquarePath = false;
-            if (isCircleModeActive) droneReachedTargetAltitudeForCirclePath = false;
-            if (isVoronoiModeActive) droneReachedTargetAltitudeForVoronoiPath = false;
-            if (isCellularDecompositionModeActive) droneReachedTargetAltitudeForCellularPath = false;
-            console.log("Целевая высота изменена. Дрон будет корректировать.");
-        }
-
         appSettings.targetAltitude = newT;
+
         if (isFlying && !isLanded) {
             if (targetAltitude !== newT) {
                 targetAltitude = newT;
                 isAltitudeChanging = true;
-                if (isSquareModeActive) droneReachedTargetAltitudeForSquarePath = false;
-                if (isCircleModeActive) droneReachedTargetAltitudeForCirclePath = false;
-                if (isVoronoiModeActive) droneReachedTargetAltitudeForVoronoiPath = false;
-                if (isCellularDecompositionModeActive) droneReachedTargetAltitudeForCellularPath = false;
             }
         }
+
+        if (isCircleModeActive && circleRadiusInput) {
+            const newRadius = parseFloat(circleRadiusInput.value);
+            if (!isNaN(newRadius) && newRadius > 0) {
+                if (appSettings.circleRadius !== newRadius) altitudeOrModeParamsChanged = true;
+                appSettings.circleRadius = newRadius;
+                CIRCLE_RADIUS = newRadius;
+            } else {
+                openModal('Пожалуйста, введите корректный положительный радиус для круга.'); return;
+            }
+        }
+
+        if (isSquareModeActive && squareDimensionInput) {
+            const newDimension = parseFloat(squareDimensionInput.value);
+            if (!isNaN(newDimension) && newDimension !== 0) {
+                if (appSettings.squareDimension !== newDimension) altitudeOrModeParamsChanged = true;
+                appSettings.squareDimension = newDimension;
+                const N = newDimension;
+                SQUARE_START_POINT = { x: 0, y: N };
+                squarePathCoordinates = [
+                    { x: -N, y: N }, { x: -N, y: -N },
+                    { x: N, y: -N }, { x: N, y: N }
+                ];
+            } else {
+                openModal('Пожалуйста, введите корректное (обычно положительное) число для квадрата.'); return;
+            }
+        }
+
+        if (altitudeOrModeParamsChanged && isFlying) {
+            if (isSquareModeActive) {
+                droneReachedTargetAltitudeForSquarePath = false;
+                isApproachingSquareStartPoint = true;
+                currentSquarePathIndex = 0; // Начать путь заново
+            }
+            if (isCircleModeActive) {
+                droneReachedTargetAltitudeForCirclePath = false;
+                isApproachingCircleStart = true;
+            }
+            if (isVoronoiModeActive) {
+                droneReachedTargetAltitudeForVoronoiPath = false;
+                currentVoronoiPathIndex = 0;
+            }
+            if (isCellularDecompositionModeActive) {
+                droneReachedTargetAltitudeForCellularPath = false;
+                currentCellularPathIndex = 0;
+            }
+            console.log("Целевая высота или параметры режима изменены. Дрон будет корректировать полет.");
+        }
+
+
         appSettings.lastUpdated = new Date();
         updateCalculatedValues(newH);
 
         if (isVoronoiModeActive) {
-            if (!appSettings.voronoiPoints || appSettings.voronoiPoints.length < 2) {
-                openModal('Для активации режима Вороного необходимо как минимум 2 точки. Пожалуйста, добавьте точки или выберите другой режим.');
-                return;
-            }
-            if (appSettings.voronoiPoints.length > 10) {
-                openModal('Для метода Вороного можно использовать максимум 10 точек.');
-                return;
-            }
-
             voronoiPathCoordinates = JSON.parse(JSON.stringify(Array.isArray(appSettings.voronoiPoints) ? appSettings.voronoiPoints : []));
             if (isFlying) {
-                currentVoronoiPathIndex = 0;
-                isFlyingVoronoiPath = false;
-                droneReachedTargetAltitudeForVoronoiPath = false;
-                voronoiTwoPointReturningToOrigin = false;
-                voronoiReturnToOriginAfterCycle = false;
+                currentVoronoiPathIndex = 0; isFlyingVoronoiPath = false; droneReachedTargetAltitudeForVoronoiPath = false;
+                voronoiTwoPointReturningToOrigin = false; voronoiReturnToOriginAfterCycle = false;
             }
         }
-
         if (isCellularDecompositionModeActive) {
             if (appSettings.cellularEndPoint && typeof appSettings.cellularEndPoint.x === 'number') {
                 cellularEndPoint = {...appSettings.cellularEndPoint};
                 generateCellularObstacles();
-                cellularPathCoordinates = [];
-                cellularReturnPathCoordinates = [];
-                currentCellularPathIndex = 0;
-                isReturningToStartCellular = false;
+                cellularPathCoordinates = []; cellularReturnPathCoordinates = []; currentCellularPathIndex = 0; isReturningToStartCellular = false;
                 if (isFlying) {
-                    droneReachedTargetAltitudeForCellularPath = false;
-                    isFlyingCellularPath = false;
+                    droneReachedTargetAltitudeForCellularPath = false; isFlyingCellularPath = false;
                 }
                 initMainGraph(true);
-                console.log("Настройки клеточной декомпозиции сохранены, препятствия сгенерированы/обновлены.");
             } else {
-                openModal("Ошибка: Конечная точка для клеточной декомпозиции не установлена корректно.");
-                return;
+                openModal("Ошибка: Конечная точка для клеточной декомпозиции не установлена корректно."); return;
             }
         }
         closeSettingsModal();
     });
 
     if (cancelBtn) cancelBtn.addEventListener('click', () => {
-        appSettings.heightAboveSea = initialH;
-        appSettings.targetAltitude = initialT;
-        appSettings.voronoiPoints = JSON.parse(JSON.stringify(initialVoronoiPoints));
-        appSettings.cellularEndPoint = JSON.parse(JSON.stringify(initialCellularEndPoint));
-        heightAboveSeaLevel = initialH;
-        if (isFlying && !isLanded && targetAltitude !== initialT) {
-            targetAltitude = initialT;
-            isAltitudeChanging = true;
-        }
-
-        closeSettingsModal();
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+        modal.dispatchEvent(event);
     });
+
 
     if (defBtn) defBtn.addEventListener('click', () => {
         if (hi) hi.value = 0;
         if (ta) ta.value = INITIAL_TAKEOFF_ALTITUDE;
+        appSettings.heightAboveSea = 0;
+        appSettings.targetAltitude = INITIAL_TAKEOFF_ALTITUDE;
+
         appSettings.voronoiPoints = [];
-        renderPointsList('voronoi', appSettings.voronoiPoints);
+        if(modal.querySelector('#voronoi_points_list')) renderPointsList('voronoi', appSettings.voronoiPoints);
+
         appSettings.cellularEndPoint = {x: null, y: null};
-        renderCellularEndpoint();
+        if(modal.querySelector('#cells_endpoint_display')) renderCellularEndpoint();
+
+        if (circleRadiusInput) circleRadiusInput.value = 50;
+        appSettings.circleRadius = 50;
+        CIRCLE_RADIUS = 50;
+
+        if (squareDimensionInput) squareDimensionInput.value = 32;
+        appSettings.squareDimension = 32;
+        const N_def = 32;
+        SQUARE_START_POINT = {x: 0, y: N_def};
+        squarePathCoordinates = [
+            {x: -N_def, y: N_def}, {x: -N_def, y: -N_def},
+            {x: N_def, y: -N_def}, {x: N_def, y: N_def}
+        ];
 
         updateCalculatedValues(0);
     });
@@ -3355,12 +3468,13 @@ function resetAllSpecialModesState(exceptMode = null) {
         isFlyingSquarePath = false;
         droneReachedTargetAltitudeForSquarePath = false;
         currentSquarePathIndex = 0;
+        isApproachingSquareStartPoint = false;
     }
     if (exceptMode !== 'circle') {
         isCircleModeActive = false;
         isFlyingCirclePath = false;
         droneReachedTargetAltitudeForCirclePath = false;
-        isApproachingCircleStart = true;
+        isApproachingCircleStart = false;
         currentCircleAngle = 0;
     }
     if (exceptMode !== 'voronoi') {
@@ -3390,7 +3504,12 @@ function handleSquareModeToggle() {
     isSquareModeActive = !isSquareModeActive;
     if (isSquareModeActive) {
         resetAllSpecialModesState('square');
+        if (appSettings.squareDimension === undefined) {
+            appSettings.squareDimension = 32;
+        }
+        isApproachingSquareStartPoint = true;
     } else {
+        isApproachingSquareStartPoint = false;
     }
     updateSettingsFields();
 }
@@ -3399,9 +3518,13 @@ function handleCircleModeToggle() {
     isCircleModeActive = !isCircleModeActive;
     if (isCircleModeActive) {
         resetAllSpecialModesState('circle');
+        if (appSettings.circleRadius === undefined) {
+            appSettings.circleRadius = 50;
+        }
         isApproachingCircleStart = true;
         currentCircleAngle = 0;
     } else {
+        isApproachingCircleStart = false;
     }
     updateSettingsFields();
 }
